@@ -2,7 +2,7 @@
 
 ## Web site
 
-This repo contains a Next.js static site.
+This repo contains a Next.js static site that serves multiple free, single-player web games. All are backend-free i.e. there is no database. The games run entirely in the user's browser.
 
 ### Development
 
@@ -14,7 +14,7 @@ This repo contains a Next.js static site.
 
 GitHub Pages deploys on pushes to `main` via `.github/workflows/deploy.yml`.
 
-## Ideas
+## Game Ideas
 
 ### Space Snake
 

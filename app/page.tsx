@@ -1,30 +1,27 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="page">
       <section className="hero">
         <p className="eyebrow">Web Games</p>
-        <h1>Playful prototypes, cosmic vibes.</h1>
+        <h1>Playful worlds, cosmic vibes.</h1>
         <p className="lead">
-          A home for experimental browser games. Expect neon trails, punchy
-          sprites, and ideas that ship fast.
+          A home for browser games with neon trails, punchy sprites, and plenty
+          of surprises. Jump in for a quick run or stay for the long haul.
         </p>
-        <div className="cta-row">
-          <a className="button" href="#ideas">
-            Explore ideas
-          </a>
-          <a className="button ghost" href="https://github.com">
-            GitHub
-          </a>
-        </div>
       </section>
 
       <section id="ideas" className="ideas">
         <div className="card">
           <h2>Space Snake</h2>
           <p>
-            Neon space monster meets classic snake. Feast on asteroids, glow
-            trails in the void.
+            Neon space monster meets classic snake. Feast on asteroids and grow
+            your trail through the void.
           </p>
+          <Link className="card-cta" href="/space-snake">
+            Play now
+          </Link>
         </div>
         <div className="card">
           <h2>Space Dogs</h2>
