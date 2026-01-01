@@ -4,12 +4,13 @@ import { useEffect, useRef } from "react";
 import {
   ArcRotateCamera,
   Color3,
+  Color4,
   Engine,
   HemisphericLight,
   MeshBuilder,
   Scene,
   StandardMaterial,
-  Vector3
+  Vector3,
 } from "@babylonjs/core";
 import "@babylonjs/loaders";
 
@@ -23,7 +24,7 @@ export default function BabylonScene() {
 
     const engine = new Engine(canvasRef.current, true);
     const scene = new Scene(engine);
-    scene.clearColor = new Color3(0.04, 0.05, 0.09);
+    scene.clearColor = new Color4(0.04, 0.05, 0.09);
 
     const camera = new ArcRotateCamera(
       "camera",
