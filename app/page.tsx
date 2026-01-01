@@ -25,18 +25,22 @@ export default function Home() {
         </div>
         <div className="card">
           <h2>Space Dogs</h2>
+          <span className="card-status">Under construction</span>
           <p>
             3D dogfighting in asteroid fields. Rails, lightning, and cinematic
             chaos.
           </p>
+          <Link className="card-cta" href="/space-dogs">
+            Fly now
+          </Link>
         </div>
-        <div className="card">
+        {/* <div className="card">
           <h2>Knights of the Forest</h2>
           <p>
             Elf knight side-scroller. Level up, unlock magic, survive the
             onslaught.
           </p>
-        </div>
+        </div> */}
       </section>
     </main>
   );

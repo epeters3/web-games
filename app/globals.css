@@ -89,6 +89,20 @@ h1 {
   font-size: 1.3rem;
 }
 
+.card-status {
+  margin: 0.25rem 0 0.6rem;
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0.18rem 0.6rem;
+  line-height: 1;
+  border-radius: 999px;
+  background: rgba(255, 111, 145, 0.15);
+  color: var(--hot);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
 .card p {
   margin: 0;
   color: var(--muted);
