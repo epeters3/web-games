@@ -1,6 +1,6 @@
-# game-tools
+# web-games
 
-## Web site
+## The Web Site
 
 This repo contains a Next.js static site that serves multiple free, single-player web games. All are backend-free i.e. there is no database. The games run entirely in the user's browser.
 
