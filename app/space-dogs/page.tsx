@@ -30,6 +30,11 @@ export default function SpaceDogsPage() {
   const [velocity, setVelocity] = useState(0);
 
   useEffect(() => {
+    const assetRoot = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(
+      /\/$/,
+      ""
+    );
+    const assetPath = assetRoot ? `${assetRoot}/` : "/";
     const canvas = canvasRef.current;
     if (!canvas) {
       return;
@@ -64,7 +69,7 @@ export default function SpaceDogsPage() {
       try {
         const result = await SceneLoader.ImportMeshAsync(
           "",
-          "/",
+          assetPath,
           "fire_planet_4k.glb",
           scene
         );
@@ -107,7 +112,7 @@ export default function SpaceDogsPage() {
       try {
         const result = await SceneLoader.ImportMeshAsync(
           "",
-          "/",
+          assetPath,
           "spaceship_ezno_1k.glb",
           scene
         );
@@ -133,7 +138,7 @@ export default function SpaceDogsPage() {
           enemyMeshes.forEach((mesh) => glow.addIncludedOnlyMesh(mesh));
         }
       } catch (error) {
-        console.error("Failed to load spaceship_ezno_4k.glb", error);
+        console.error("Failed to load spaceship_ezno_1k.glb", error);
       }
     };
 
