@@ -329,6 +329,7 @@ export default function SpaceDogsPage() {
     const linearDamping = 0.985;
     const angularDamping = 0.9;
     const laserLifetime = 0.7;
+    const laserSpeed = 240;
     const lasers: {
       mesh: ReturnType<typeof MeshBuilder.CreateCylinder>;
       light: PointLight;
@@ -436,7 +437,7 @@ export default function SpaceDogsPage() {
 
       for (let i = lasers.length - 1; i >= 0; i -= 1) {
         const laser = lasers[i];
-        laser.mesh.position.addInPlace(laser.direction.scale(60 * dt));
+        laser.mesh.position.addInPlace(laser.direction.scale(laserSpeed * dt));
         laser.light.position = laser.mesh.position;
         laser.ttl -= dt;
         if (laser.ttl <= 0) {
