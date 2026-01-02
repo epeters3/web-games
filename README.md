@@ -27,3 +27,8 @@ Classic 2D snake but with a space background, flourescent colors, and the snake 
 ### Knights of The Forest
 
 2D side scroller where you are an elf knight that is defending his woodland home from bad men and goblins, ogres, bad creatures, etc. Can level up and get new weapons, bows, magic powers (shoot fire, etc.), etc. Maybe procedurally generated for infinity play that gets indefinitely harder. How long can you survive? Maybe uses sprites.
+
+## Reference
+
+- **glTF** - Good 3D asset format to use.
+- Free glTF assets: https://sketchfab.com/search?features=downloadable&licenses=7c23a1ba438d4306920229c12afcb5f9&licenses=72eb2b1960364637901eacce19283624&type=models

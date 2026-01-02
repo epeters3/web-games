@@ -7,23 +7,23 @@ import {
   Axis,
   Color3,
   Color4,
-  DirectionalLight,
-  DynamicTexture,
   Engine,
-  FresnelParameters,
   GlowLayer,
   HemisphericLight,
+  Mesh,
   MeshBuilder,
   Matrix,
   PointLight,
   Quaternion,
   Scene,
+  SceneLoader,
   Space,
   StandardMaterial,
-  Texture,
+  TransformNode,
   UniversalCamera,
-  Vector3
+  Vector3,
 } from "@babylonjs/core";
+import "@babylonjs/loaders";
 
 export default function SpaceDogsPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -42,79 +42,129 @@ export default function SpaceDogsPage() {
     const hemi = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene);
     hemi.intensity = 0.15;
 
-    const planetDiameter = 36;
-    const planet = MeshBuilder.CreateSphere("planet", { diameter: planetDiameter, segments: 48 }, scene);
-    planet.position = new Vector3(-18, -10, 0);
-    const planetMat = new StandardMaterial("planetMat", scene);
-    planetMat.diffuseColor = new Color3(0.1, 0.18, 0.35);
-    planetMat.emissiveColor = new Color3(0.08, 0.2, 0.4);
-    planetMat.specularColor = new Color3(0.6, 0.8, 1);
-    planetMat.specularPower = 64;
-    planetMat.emissiveFresnelParameters = new FresnelParameters();
-    planetMat.emissiveFresnelParameters.bias = 0.1;
-    planetMat.emissiveFresnelParameters.power = 2.6;
-    planetMat.emissiveFresnelParameters.leftColor = new Color3(0.2, 0.5, 0.9);
-    planetMat.emissiveFresnelParameters.rightColor = new Color3(0.02, 0.06, 0.15);
-    planet.material = planetMat;
-
-    const starTexture = new DynamicTexture("starTexture", { width: 256, height: 256 }, scene, false);
-    starTexture.wrapU = Texture.WRAP_ADDRESSMODE;
-    starTexture.wrapV = Texture.WRAP_ADDRESSMODE;
-    planetMat.diffuseTexture = starTexture;
-
-    const atmosphere = MeshBuilder.CreateSphere(
-      "atmosphere",
-      { diameter: planetDiameter + 1.6, segments: 48 },
-      scene
-    );
-    const atmMat = new StandardMaterial("atmMat", scene);
-    atmMat.emissiveColor = new Color3(0.2, 0.6, 1);
-    atmMat.alpha = 0.14;
-    atmMat.emissiveFresnelParameters = new FresnelParameters();
-    atmMat.emissiveFresnelParameters.bias = 0.08;
-    atmMat.emissiveFresnelParameters.power = 3.4;
-    atmMat.emissiveFresnelParameters.leftColor = new Color3(0.1, 0.4, 0.9);
-    atmMat.emissiveFresnelParameters.rightColor = new Color3(0, 0, 0);
-    atmosphere.material = atmMat;
-    atmosphere.position = planet.position.clone();
-
-    const corona = MeshBuilder.CreateSphere(
-      "corona",
-      { diameter: planetDiameter + 4.6, segments: 48 },
-      scene
-    );
-    const coronaMat = new StandardMaterial("coronaMat", scene);
-    coronaMat.emissiveColor = new Color3(0.16, 0.5, 0.95);
-    coronaMat.alpha = 0.08;
-    corona.material = coronaMat;
-    corona.position = planet.position.clone();
-
     const glow = new GlowLayer("glow", scene, {
-      blurKernelSize: 64
+      blurKernelSize: 64,
     });
     glow.intensity = 0.9;
-    glow.addIncludedOnlyMesh(planet);
-    glow.addIncludedOnlyMesh(atmosphere);
-    glow.addIncludedOnlyMesh(corona);
 
-    const starLight = new PointLight("starLight", planet.position.clone(), scene);
+    const planetPosition = new Vector3(-18, -10, 0);
+    let planetCenter = planetPosition.clone();
+    let planetRadius = 18;
+    let planetMeshes: Mesh[] = [];
+
+    const starLight = new PointLight(
+      "starLight",
+      planetPosition.clone(),
+      scene
+    );
     starLight.intensity = 2.6;
     starLight.range = 220;
 
+    const loadPlanet = async () => {
+      try {
+        const result = await SceneLoader.ImportMeshAsync(
+          "",
+          "/",
+          "fire_planet_4k.glb",
+          scene
+        );
+        const root =
+          result.meshes.find((mesh) => mesh.parent === null) ??
+          result.meshes[0];
+        if (root) {
+          root.position = planetPosition.clone();
+          root.scaling = new Vector3(80, 80, 80);
+        }
+
+        planetMeshes = result.meshes.filter(
+          (mesh): mesh is Mesh =>
+            mesh instanceof Mesh && mesh.getTotalVertices() > 0
+        );
+        planetMeshes.forEach((mesh) => glow.addIncludedOnlyMesh(mesh));
+
+        if (root) {
+          root.computeWorldMatrix(true);
+          const bounds = root.getHierarchyBoundingVectors(true);
+          planetCenter = bounds.min.add(bounds.max).scale(0.5);
+          const extent = bounds.max.subtract(bounds.min);
+          planetRadius = Math.max(extent.x, extent.y, extent.z) * 0.5;
+          starLight.position.copyFrom(planetCenter);
+        }
+      } catch (error) {
+        console.error("Failed to load fire_planet.glb", error);
+      }
+    };
+
+    void loadPlanet();
+
+    let enemyRoot: TransformNode | null = null;
+    let enemyMeshes: Mesh[] = [];
+    const enemyOrbitRadius = 260;
+    const enemyOrbitHeight = 22;
+    const enemyOrbitRate = 0.000125;
+
+    const loadEnemy = async () => {
+      try {
+        const result = await SceneLoader.ImportMeshAsync(
+          "",
+          "/",
+          "spaceship_ezno_1k.glb",
+          scene
+        );
+        const rootNodes = result.meshes.filter((mesh) => mesh.parent === null);
+        const primaryRoot = rootNodes[0] ?? result.meshes[0];
+        rootNodes.slice(1).forEach((root) => root.setEnabled(false));
+
+        const enemyContainer = new TransformNode("enemyContainer", scene);
+        enemyRoot = enemyContainer;
+        enemyRoot.position = planetPosition.add(
+          new Vector3(enemyOrbitRadius, enemyOrbitHeight, 0)
+        );
+        enemyRoot.rotationQuaternion = Quaternion.Identity();
+        enemyRoot.scaling = new Vector3(1.6, 1.6, 1.6);
+
+        if (primaryRoot) {
+          primaryRoot.parent = enemyRoot;
+          const childMeshes = primaryRoot.getChildMeshes(false);
+          enemyMeshes = [
+            ...childMeshes.filter((mesh): mesh is Mesh => mesh instanceof Mesh),
+            ...(primaryRoot instanceof Mesh ? [primaryRoot] : []),
+          ];
+          enemyMeshes.forEach((mesh) => glow.addIncludedOnlyMesh(mesh));
+        }
+      } catch (error) {
+        console.error("Failed to load spaceship_ezno_4k.glb", error);
+      }
+    };
+
+    void loadEnemy();
+
     const playerRadius = 1.1;
-    const player = MeshBuilder.CreateBox("player", { width: 1.4, height: 0.6, depth: 2.4 }, scene);
-    player.position = new Vector3(0, 2, 55);
+    const player = MeshBuilder.CreateBox(
+      "player",
+      { width: 1.4, height: 0.6, depth: 2.4 },
+      scene
+    );
+    player.position = new Vector3(0, 6, 220);
     player.rotationQuaternion = Quaternion.Identity();
-    player.lookAt(planet.position);
+    player.lookAt(planetPosition);
     const playerMat = new StandardMaterial("playerMat", scene);
     playerMat.diffuseColor = new Color3(0.95, 0.4, 0.55);
     player.material = playerMat;
 
-    const camera = new UniversalCamera("camera", new Vector3(0, 0.25, -0.8), scene);
+    const camera = new UniversalCamera(
+      "camera",
+      new Vector3(0, 0.25, -0.8),
+      scene
+    );
     camera.parent = player;
     camera.rotation = new Vector3(0, 0, 0);
 
-    const wingLeft = MeshBuilder.CreateBox("wingLeft", { width: 0.3, height: 0.1, depth: 1 }, scene);
+    const wingLeft = MeshBuilder.CreateBox(
+      "wingLeft",
+      { width: 0.3, height: 0.1, depth: 1 },
+      scene
+    );
     wingLeft.parent = player;
     wingLeft.position = new Vector3(-0.9, -0.1, 0);
 
@@ -144,8 +194,12 @@ export default function SpaceDogsPage() {
     }
     trail.isVisible = false;
 
-    const starSeed = 1200;
-    const starBase = MeshBuilder.CreateSphere("star", { diameter: 0.14, segments: 6 }, scene);
+    const starSeed = 1800;
+    const starBase = MeshBuilder.CreateSphere(
+      "star",
+      { diameter: 0.14, segments: 6 },
+      scene
+    );
     starBase.isVisible = true;
     starBase.isPickable = false;
     const starMat = new StandardMaterial("starMat", scene);
@@ -155,7 +209,7 @@ export default function SpaceDogsPage() {
 
     const matrices = new Float32Array(starSeed * 16);
     for (let i = 0; i < starSeed; i += 1) {
-      const radius = 60 + Math.random() * 80;
+      const radius = 240 + Math.random() * 220;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       const x = radius * Math.sin(phi) * Math.cos(theta);
@@ -177,13 +231,12 @@ export default function SpaceDogsPage() {
     const controlState = {
       throttle: false,
       reverse: false,
-      fire: false,
       yawLeft: false,
       yawRight: false,
       pitchUp: false,
       pitchDown: false,
       rollLeft: false,
-      rollRight: false
+      rollRight: false,
     };
     let fireRequested = false;
 
@@ -219,13 +272,6 @@ export default function SpaceDogsPage() {
       if (event.code === "KeyE") {
         controlState.rollRight = true;
       }
-      if (event.code === "Enter" || event.code === "NumpadEnter") {
-        event.preventDefault();
-        controlState.fire = true;
-        if (!event.repeat) {
-          fireRequested = true;
-        }
-      }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
@@ -259,22 +305,22 @@ export default function SpaceDogsPage() {
       if (event.code === "KeyE") {
         controlState.rollRight = false;
       }
-      if (event.code === "Enter" || event.code === "NumpadEnter") {
-        controlState.fire = false;
-      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    const handlePointerDown = () => {
+      fireRequested = true;
+    };
+    canvas.addEventListener("pointerdown", handlePointerDown);
 
     const linearVelocity = new Vector3(0, 0, 0);
     const angularVelocity = new Vector3(0, 0, 0);
     const displacement = new Vector3(0, 0, 0);
-    const planetCenter = planet.position.clone();
     const muzzleOffset = new Vector3(0, 0, 1.2);
     const angularAccel = 2.6;
-    const thrustAccel = 6.5;
-    const maxSpeed = 12;
+    const thrustAccel = 16;
+    const maxSpeed = 36;
     const linearDamping = 0.985;
     const angularDamping = 0.9;
     const laserLifetime = 0.7;
@@ -302,93 +348,27 @@ export default function SpaceDogsPage() {
       beamLight.intensity = 2.2;
       beamLight.range = 10;
       beamLight.diffuse = new Color3(0.2, 1, 0.4);
-      beamLight.excludedMeshes = [planet, atmosphere, corona];
+      beamLight.excludedMeshes = planetMeshes;
 
-      lasers.push({ mesh: beam, light: beamLight, ttl: laserLifetime, direction: Vector3.Forward() });
+      lasers.push({
+        mesh: beam,
+        light: beamLight,
+        ttl: laserLifetime,
+        direction: Vector3.Forward(),
+      });
     };
 
     let lastShot = 0;
 
-    const noise = (x: number, y: number, seed: number) => {
-      const value = Math.sin(x * 12.9898 + y * 78.233 + seed * 37.719) * 43758.5453;
-      return value - Math.floor(value);
-    };
-
-    const updateStarTexture = (time: number) => {
-      const ctx = starTexture.getContext() as CanvasRenderingContext2D;
-      const size = starTexture.getSize();
-      const width = size.width;
-      const height = size.height;
-      const seed = Math.floor(time / 900);
-
-      ctx.clearRect(0, 0, width, height);
-      const gradient = ctx.createRadialGradient(
-        width * 0.45,
-        height * 0.35,
-        width * 0.1,
-        width * 0.5,
-        height * 0.5,
-        width * 0.6
-      );
-      gradient.addColorStop(0, "rgba(220, 255, 255, 1)");
-      gradient.addColorStop(0.55, "rgba(80, 150, 240, 1)");
-      gradient.addColorStop(1, "rgba(10, 18, 44, 1)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-
-      const bandShift = (time * 0.02) % width;
-      for (let y = 0; y < height; y += 1) {
-        const band = Math.sin((y / height) * Math.PI * 5 + time * 0.002) * 0.5 + 0.5;
-        const swirl = Math.sin((y / height) * Math.PI * 12 + time * 0.003) * 0.5 + 0.5;
-        const grain = noise(y, bandShift, seed) * 0.18;
-        ctx.fillStyle = `rgba(130, 200, 255, ${0.08 + band * 0.16 + swirl * 0.06 + grain})`;
-        ctx.fillRect(bandShift, y, width, 1);
-      }
-
-      for (let i = 0; i < 140; i += 1) {
-        const x = noise(i, seed, 0) * width;
-        const y = noise(i * 2, seed, 1) * height;
-        const radius = 2 + noise(i, seed, 2) * 7;
-        const alpha = 0.05 + noise(i, seed, 3) * 0.22;
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.globalCompositeOperation = "multiply";
-      const limb = ctx.createRadialGradient(
-        width * 0.5,
-        height * 0.5,
-        width * 0.2,
-        width * 0.5,
-        height * 0.5,
-        width * 0.7
-      );
-      limb.addColorStop(0, "rgba(255, 255, 255, 1)");
-      limb.addColorStop(1, "rgba(40, 70, 120, 0.7)");
-      ctx.fillStyle = limb;
-      ctx.fillRect(0, 0, width, height);
-      ctx.globalCompositeOperation = "source-over";
-
-      starTexture.update(false);
-    };
-
-    let alpha = 0;
     let lastHudUpdate = 0;
     engine.runRenderLoop(() => {
-      const pulse = 0.5 + Math.sin(alpha * 1.2) * 0.1;
-      planetMat.emissiveColor = new Color3(0.12 + pulse * 0.1, 0.24 + pulse * 0.14, 0.45 + pulse * 0.2);
-      atmMat.alpha = 0.12 + pulse * 0.06;
-      coronaMat.alpha = 0.06 + pulse * 0.04;
-      if (Math.floor(alpha * 60) % 4 === 0) {
-        updateStarTexture(performance.now());
-      }
-      alpha += 0.008;
       const dt = engine.getDeltaTime() / 1000;
-      const yawInput = (controlState.yawRight ? 1 : 0) - (controlState.yawLeft ? 1 : 0);
-      const pitchInput = (controlState.pitchUp ? 1 : 0) - (controlState.pitchDown ? 1 : 0);
-      const rollInput = (controlState.rollLeft ? 1 : 0) - (controlState.rollRight ? 1 : 0);
+      const yawInput =
+        (controlState.yawRight ? 1 : 0) - (controlState.yawLeft ? 1 : 0);
+      const pitchInput =
+        (controlState.pitchUp ? 1 : 0) - (controlState.pitchDown ? 1 : 0);
+      const rollInput =
+        (controlState.rollLeft ? 1 : 0) - (controlState.rollRight ? 1 : 0);
 
       angularVelocity.x += pitchInput * angularAccel * dt;
       angularVelocity.y += yawInput * angularAccel * dt;
@@ -423,7 +403,7 @@ export default function SpaceDogsPage() {
       displacement.copyFrom(linearVelocity).scaleInPlace(dt);
       const nextPosition = player.position.add(displacement);
       const planetToShip = nextPosition.subtract(planetCenter);
-      const minDistance = planetDiameter * 0.5 + playerRadius;
+      const minDistance = planetRadius + playerRadius;
       if (planetToShip.length() < minDistance) {
         planetToShip.normalize();
         player.position = planetCenter.add(planetToShip.scale(minDistance));
@@ -433,14 +413,15 @@ export default function SpaceDogsPage() {
       }
 
       const now = performance.now();
-      if ((controlState.fire || fireRequested) && now - lastShot > 180) {
+      if (fireRequested && now - lastShot > 180) {
         const muzzle = player.position.add(player.getDirection(muzzleOffset));
         spawnLaser();
         const active = lasers[lasers.length - 1];
         const direction = player.getDirection(Vector3.Forward()).normalize();
         active.direction = direction;
         active.mesh.position = muzzle.add(direction.scale(3));
-        const shipRotation = player.rotationQuaternion?.clone() ?? Quaternion.Identity();
+        const shipRotation =
+          player.rotationQuaternion?.clone() ?? Quaternion.Identity();
         const cylinderAlign = Quaternion.FromEulerAngles(Math.PI / 2, 0, 0);
         active.mesh.rotationQuaternion = shipRotation.multiply(cylinderAlign);
         active.light.position = active.mesh.position;
@@ -465,6 +446,32 @@ export default function SpaceDogsPage() {
         lastHudUpdate = now;
       }
 
+      if (enemyRoot) {
+        const orbitAngle = performance.now() * enemyOrbitRate;
+        const orbitHeight = enemyOrbitHeight + Math.sin(orbitAngle * 1.4) * 10;
+        const orbitPosition = planetCenter.add(
+          new Vector3(
+            Math.cos(orbitAngle) * enemyOrbitRadius,
+            orbitHeight,
+            Math.sin(orbitAngle) * enemyOrbitRadius
+          )
+        );
+        enemyRoot.position.copyFrom(orbitPosition);
+
+        const travelDirection = new Vector3(
+          -Math.sin(orbitAngle),
+          0,
+          Math.cos(orbitAngle)
+        ).normalize();
+        const yaw = Math.atan2(travelDirection.x, travelDirection.z);
+        const pitch = Math.asin(-travelDirection.y);
+        enemyRoot.rotationQuaternion = Quaternion.RotationYawPitchRoll(
+          yaw,
+          pitch,
+          0
+        );
+      }
+
       scene.render();
     });
 
@@ -474,6 +481,7 @@ export default function SpaceDogsPage() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      canvas.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("resize", handleResize);
       scene.dispose();
       engine.dispose();
@@ -518,7 +526,10 @@ export default function SpaceDogsPage() {
           </div>
         </div>
         <div className={styles.controls}>
-          <span>W/S = pitch · A/D = yaw · ←/→ or Q/E = roll · Space = throttle · R = reverse · Enter = fire</span>
+          <span>
+            W/S = pitch · A/D = yaw · ←/→ or Q/E = roll · Space = throttle · R =
+            reverse · Click = fire
+          </span>
           <span>First-person cockpit view</span>
         </div>
       </section>
