@@ -78,7 +78,7 @@ export default function SpaceDogsPage() {
           result.meshes[0];
         if (root) {
           root.position = planetPosition.clone();
-          root.scaling = new Vector3(80, 80, 80);
+          root.scaling = new Vector3(128, 128, 128);
         }
 
         planetMeshes = result.meshes.filter(
@@ -126,7 +126,7 @@ export default function SpaceDogsPage() {
           new Vector3(enemyOrbitRadius, enemyOrbitHeight, 0)
         );
         enemyRoot.rotationQuaternion = Quaternion.Identity();
-        enemyRoot.scaling = new Vector3(1.6, 1.6, 1.6);
+        enemyRoot.scaling = new Vector3(20, 20, 20);
 
         if (primaryRoot) {
           primaryRoot.parent = enemyRoot;

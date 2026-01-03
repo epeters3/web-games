@@ -7,7 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "glb:size": "tsx tools/glb-size.ts",
+    "glb:normalize": "tsx tools/resize-glb.ts"
   },
   "dependencies": {
     "@babylonjs/core": "^7.0.0",
@@ -18,9 +20,13 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.1.4",
+    "@gltf-transform/extensions": "^4.1.4",
+    "@gltf-transform/functions": "^4.1.4",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "^4.16.2",
     "typescript": "^5.0.0"
   }
 }
