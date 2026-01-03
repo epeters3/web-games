@@ -252,12 +252,15 @@ export default function SpaceDogsPage() {
       if (event.code === "KeyS") {
         controlState.pitchUp = true;
       }
-      if (event.code === "KeyR") {
+      if (event.code === "KeyL") {
         controlState.reverse = true;
+      }
+      if (event.code === "KeyO") {
+        controlState.throttle = true;
       }
       if (event.code === "Space") {
         event.preventDefault();
-        controlState.throttle = true;
+        fireRequested = true;
       }
       if (event.code === "KeyA") {
         controlState.yawLeft = true;
@@ -265,16 +268,10 @@ export default function SpaceDogsPage() {
       if (event.code === "KeyD") {
         controlState.yawRight = true;
       }
-      if (event.code === "ArrowLeft") {
+      if (event.code === "KeyK") {
         controlState.rollLeft = true;
       }
-      if (event.code === "ArrowRight") {
-        controlState.rollRight = true;
-      }
-      if (event.code === "KeyQ") {
-        controlState.rollLeft = true;
-      }
-      if (event.code === "KeyE") {
+      if (event.code === "Semicolon") {
         controlState.rollRight = true;
       }
     };
@@ -286,10 +283,10 @@ export default function SpaceDogsPage() {
       if (event.code === "KeyS") {
         controlState.pitchUp = false;
       }
-      if (event.code === "KeyR") {
+      if (event.code === "KeyL") {
         controlState.reverse = false;
       }
-      if (event.code === "Space") {
+      if (event.code === "KeyO") {
         controlState.throttle = false;
       }
       if (event.code === "KeyA") {
@@ -298,26 +295,17 @@ export default function SpaceDogsPage() {
       if (event.code === "KeyD") {
         controlState.yawRight = false;
       }
-      if (event.code === "ArrowLeft") {
+      if (event.code === "KeyK") {
         controlState.rollLeft = false;
       }
-      if (event.code === "ArrowRight") {
-        controlState.rollRight = false;
-      }
-      if (event.code === "KeyQ") {
-        controlState.rollLeft = false;
-      }
-      if (event.code === "KeyE") {
+      if (event.code === "Semicolon") {
         controlState.rollRight = false;
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
-    const handlePointerDown = () => {
-      fireRequested = true;
-    };
-    canvas.addEventListener("pointerdown", handlePointerDown);
+    
 
     const linearVelocity = new Vector3(0, 0, 0);
     const angularVelocity = new Vector3(0, 0, 0);
@@ -487,7 +475,7 @@ export default function SpaceDogsPage() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
-      canvas.removeEventListener("pointerdown", handlePointerDown);
+      
       window.removeEventListener("resize", handleResize);
       scene.dispose();
       engine.dispose();
@@ -533,8 +521,8 @@ export default function SpaceDogsPage() {
         </div>
         <div className={styles.controls}>
           <span>
-            W/S = pitch · A/D = yaw · ←/→ or Q/E = roll · Space = throttle · R =
-            reverse · Click = fire
+            W/S = pitch · A/D = yaw · K/; = roll · O = throttle · L = reverse ·
+            Space = fire
           </span>
           <span>First-person cockpit view</span>
         </div>
