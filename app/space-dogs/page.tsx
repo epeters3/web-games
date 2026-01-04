@@ -28,8 +28,24 @@ import "@babylonjs/loaders";
 export default function SpaceDogsPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [velocity, setVelocity] = useState(0);
+  const [satelliteCount, setSatelliteCount] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
+  const timerStartRef = useRef<number | null>(null);
+  const timerStopRef = useRef<number | null>(null);
+
+  const formatTime = (seconds: number) => {
+    const clamped = Math.max(0, seconds);
+    const mins = Math.floor(clamped / 60);
+    const secs = Math.floor(clamped % 60);
+    const millis = Math.floor((clamped % 1) * 100);
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}.${millis.toString().padStart(2, "0")}`;
+  };
 
   useEffect(() => {
+    setAssetsLoaded(false);
     const assetRoot = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(
       /\/$/,
       ""
@@ -63,7 +79,18 @@ export default function SpaceDogsPage() {
       scene
     );
     starLight.intensity = 2.6;
-    starLight.range = 220;
+    starLight.range = 1200;
+    starLight.diffuse = new Color3(1, 0.55, 0.2);
+    starLight.specular = new Color3(1, 0.6, 0.25);
+
+    let isMounted = true;
+    const assetState = { planet: false, satellites: false };
+    const markLoaded = (key: "planet" | "satellites") => {
+      assetState[key] = true;
+      if (assetState.planet && assetState.satellites && isMounted) {
+        setAssetsLoaded(true);
+      }
+    };
 
     const loadPlanet = async () => {
       try {
@@ -78,7 +105,7 @@ export default function SpaceDogsPage() {
           result.meshes[0];
         if (root) {
           root.position = planetPosition.clone();
-          root.scaling = new Vector3(128, 128, 128);
+          root.scaling = new Vector3(256, 256, 256);
         }
 
         planetMeshes = result.meshes.filter(
@@ -95,54 +122,138 @@ export default function SpaceDogsPage() {
           planetRadius = Math.max(extent.x, extent.y, extent.z) * 0.5;
           starLight.position.copyFrom(planetCenter);
         }
+
+        planetMeshes.forEach((mesh) => {
+          const material = mesh.material as StandardMaterial | null;
+          if (!material) {
+            return;
+          }
+          if (material.emissiveColor) {
+            material.emissiveColor = material.emissiveColor.scale(0.5);
+          }
+          if (material.diffuseColor) {
+            material.diffuseColor = material.diffuseColor.scale(0.7);
+          }
+        });
       } catch (error) {
         console.error("Failed to load fire_planet.glb", error);
+      } finally {
+        markLoaded("planet");
       }
     };
 
     void loadPlanet();
 
-    let enemyRoot: TransformNode | null = null;
-    let enemyMeshes: Mesh[] = [];
-    const enemyOrbitRadius = 260;
-    const enemyOrbitHeight = 22;
-    const enemyOrbitRate = 0.000125;
+    let satelliteRoot: TransformNode | null = null;
+    let satelliteMeshes: Mesh[] = [];
+    const satellites: {
+      node: TransformNode;
+      angle: number;
+      speed: number;
+      tilt: number;
+      altitude: number;
+      blink: Mesh;
+      blinkPhase: number;
+      health: number;
+    }[] = [];
 
-    const loadEnemy = async () => {
+    const loadSatellites = async () => {
       try {
         const result = await SceneLoader.ImportMeshAsync(
           "",
           assetPath,
-          "spaceship_ezno_1k.glb",
+          "space_satellite_1k.glb",
           scene
         );
         const rootNodes = result.meshes.filter((mesh) => mesh.parent === null);
         const primaryRoot = rootNodes[0] ?? result.meshes[0];
         rootNodes.slice(1).forEach((root) => root.setEnabled(false));
 
-        const enemyContainer = new TransformNode("enemyContainer", scene);
-        enemyRoot = enemyContainer;
-        enemyRoot.position = planetPosition.add(
-          new Vector3(enemyOrbitRadius, enemyOrbitHeight, 0)
+        const satelliteContainer = new TransformNode(
+          "satelliteContainer",
+          scene
         );
-        enemyRoot.rotationQuaternion = Quaternion.Identity();
-        enemyRoot.scaling = new Vector3(20, 20, 20);
+        satelliteRoot = satelliteContainer;
+        satelliteRoot.rotationQuaternion = Quaternion.Identity();
 
         if (primaryRoot) {
-          primaryRoot.parent = enemyRoot;
+          primaryRoot.parent = satelliteRoot;
           const childMeshes = primaryRoot.getChildMeshes(false);
-          enemyMeshes = [
+          satelliteMeshes = [
             ...childMeshes.filter((mesh): mesh is Mesh => mesh instanceof Mesh),
             ...(primaryRoot instanceof Mesh ? [primaryRoot] : []),
           ];
-          enemyMeshes.forEach((mesh) => glow.addIncludedOnlyMesh(mesh));
+          satelliteMeshes.forEach((mesh) => glow.addIncludedOnlyMesh(mesh));
+        }
+
+        if (satelliteRoot && satelliteMeshes.length > 0) {
+          for (let i = 0; i < 12; i += 1) {
+            const node = new TransformNode(`satellite-${i}`, scene);
+            node.parent = satelliteRoot;
+            node.rotationQuaternion = Quaternion.Identity();
+            node.scaling = new Vector3(1, 1, 1);
+
+            satelliteMeshes.forEach((mesh) => {
+              const instance = mesh.createInstance(`sat-${mesh.name}-${i}`);
+              instance.parent = node;
+            });
+
+            const blink = MeshBuilder.CreateSphere(
+              `satellite-blink-${i}`,
+              { diameter: 0.5, segments: 6 },
+              scene
+            );
+            const blinkMat = new StandardMaterial(
+              `satellite-blink-mat-${i}`,
+              scene
+            );
+            blinkMat.emissiveColor = new Color3(0.2, 0.9, 1);
+            blinkMat.disableLighting = true;
+            blink.material = blinkMat;
+            blink.parent = node;
+            glow.addIncludedOnlyMesh(blink);
+
+            let min = new Vector3(
+              Number.POSITIVE_INFINITY,
+              Number.POSITIVE_INFINITY,
+              Number.POSITIVE_INFINITY
+            );
+            let max = new Vector3(
+              Number.NEGATIVE_INFINITY,
+              Number.NEGATIVE_INFINITY,
+              Number.NEGATIVE_INFINITY
+            );
+            node.getChildMeshes(false).forEach((child) => {
+              child.computeWorldMatrix(true);
+              const bounds = child.getBoundingInfo().boundingBox;
+              min = Vector3.Minimize(min, bounds.minimum);
+              max = Vector3.Maximize(max, bounds.maximum);
+            });
+            const centerX = (min.x + max.x) * 0.5;
+            const centerY = (min.y + max.y) * 0.5;
+            blink.position = new Vector3(centerX, centerY, min.z);
+
+            satellites.push({
+              node,
+              angle: Math.random() * Math.PI * 2,
+              speed: 0.00008 + Math.random() * 0.00012,
+              tilt: (Math.random() - 0.5) * Math.PI * 0.6,
+              altitude: 10 + Math.random() * 15,
+              blink,
+              blinkPhase: Math.random() * Math.PI * 2,
+              health: 5,
+            });
+          }
+          setSatelliteCount(satellites.length);
         }
       } catch (error) {
-        console.error("Failed to load spaceship_ezno_1k.glb", error);
+        console.error("Failed to load space_satellite_1k.glb", error);
+      } finally {
+        markLoaded("satellites");
       }
     };
 
-    void loadEnemy();
+    void loadSatellites();
 
     const playerRadius = 1.1;
     const player = MeshBuilder.CreateBox(
@@ -236,6 +347,7 @@ export default function SpaceDogsPage() {
     const controlState = {
       throttle: false,
       reverse: false,
+      fire: false,
       yawLeft: false,
       yawRight: false,
       pitchUp: false,
@@ -261,6 +373,7 @@ export default function SpaceDogsPage() {
       if (event.code === "Space") {
         event.preventDefault();
         fireRequested = true;
+        controlState.fire = true;
       }
       if (event.code === "KeyA") {
         controlState.yawLeft = true;
@@ -289,6 +402,9 @@ export default function SpaceDogsPage() {
       if (event.code === "KeyO") {
         controlState.throttle = false;
       }
+      if (event.code === "Space") {
+        controlState.fire = false;
+      }
       if (event.code === "KeyA") {
         controlState.yawLeft = false;
       }
@@ -305,7 +421,6 @@ export default function SpaceDogsPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
-    
 
     const linearVelocity = new Vector3(0, 0, 0);
     const angularVelocity = new Vector3(0, 0, 0);
@@ -313,16 +428,24 @@ export default function SpaceDogsPage() {
     const muzzleOffset = new Vector3(0, 0, 1.2);
     const angularAccel = 2.6;
     const thrustAccel = 16;
-    const maxSpeed = 36;
+    const playerMaxSpeed = 36;
+    const satelliteMaxSpeed = 17.5;
     const linearDamping = 0.985;
     const angularDamping = 0.9;
     const laserLifetime = 0.7;
-    const laserSpeed = 240;
+    const laserSpeed = 300;
+    const satelliteHitRadius = 1.2;
     const lasers: {
       mesh: ReturnType<typeof MeshBuilder.CreateCylinder>;
       light: PointLight;
       ttl: number;
       direction: Vector3;
+    }[] = [];
+    const explosions: { mesh: Mesh; ttl: number }[] = [];
+    const sparkParticles: {
+      mesh: Mesh;
+      ttl: number;
+      velocity: Vector3;
     }[] = [];
 
     const spawnLaser = () => {
@@ -350,6 +473,46 @@ export default function SpaceDogsPage() {
         ttl: laserLifetime,
         direction: Vector3.Forward(),
       });
+    };
+
+    const spawnExplosion = (position: Vector3) => {
+      const blast = MeshBuilder.CreateSphere(
+        "explosion",
+        { diameter: 1.6, segments: 8 },
+        scene
+      );
+      blast.position.copyFrom(position);
+      const blastMat = new StandardMaterial("explosion-mat", scene);
+      blastMat.emissiveColor = new Color3(1, 0.6, 0.2);
+      blastMat.alpha = 0.9;
+      blastMat.disableLighting = true;
+      blast.material = blastMat;
+      glow.addIncludedOnlyMesh(blast);
+      explosions.push({ mesh: blast, ttl: 0.6 });
+    };
+
+    const spawnSparks = (position: Vector3, count: number) => {
+      for (let i = 0; i < count; i += 1) {
+        const spark = MeshBuilder.CreateSphere(
+          "spark",
+          { diameter: 0.18, segments: 6 },
+          scene
+        );
+        spark.position.copyFrom(position);
+        const sparkMat = new StandardMaterial("spark-mat", scene);
+        sparkMat.emissiveColor = new Color3(1, 0.8, 0.2);
+        sparkMat.alpha = 0.9;
+        sparkMat.disableLighting = true;
+        spark.material = sparkMat;
+        glow.addIncludedOnlyMesh(spark);
+
+        const velocity = new Vector3(
+          (Math.random() - 0.5) * 6,
+          (Math.random() - 0.5) * 6,
+          (Math.random() - 0.5) * 6
+        );
+        sparkParticles.push({ mesh: spark, ttl: 0.4, velocity });
+      }
     };
 
     let lastShot = 0;
@@ -390,8 +553,8 @@ export default function SpaceDogsPage() {
 
       linearVelocity.scaleInPlace(Math.pow(linearDamping, dt * 60));
       const speed = linearVelocity.length();
-      if (speed > maxSpeed) {
-        linearVelocity.scaleInPlace(maxSpeed / speed);
+      if (speed > playerMaxSpeed) {
+        linearVelocity.scaleInPlace(playerMaxSpeed / speed);
       }
 
       displacement.copyFrom(linearVelocity).scaleInPlace(dt);
@@ -407,7 +570,7 @@ export default function SpaceDogsPage() {
       }
 
       const now = performance.now();
-      if (fireRequested && now - lastShot > 180) {
+      if ((fireRequested || controlState.fire) && now - lastShot > 135) {
         const muzzle = player.position.add(player.getDirection(muzzleOffset));
         spawnLaser();
         const active = lasers[lasers.length - 1];
@@ -432,38 +595,124 @@ export default function SpaceDogsPage() {
           laser.mesh.dispose();
           laser.light.dispose();
           lasers.splice(i, 1);
+          continue;
         }
+
+        if (satellites.length > 0) {
+          for (let s = satellites.length - 1; s >= 0; s -= 1) {
+            const satellite = satellites[s];
+            const distance = Vector3.Distance(
+              laser.mesh.position,
+              satellite.node.getAbsolutePosition()
+            );
+            if (distance <= satelliteHitRadius) {
+              satellite.health -= 1;
+              spawnSparks(satellite.node.getAbsolutePosition(), 6);
+              laser.mesh.dispose();
+              laser.light.dispose();
+              lasers.splice(i, 1);
+              if (satellite.health <= 0) {
+                spawnSparks(satellite.node.getAbsolutePosition(), 12);
+                spawnExplosion(satellite.node.getAbsolutePosition());
+                satellite.node.dispose(false, true);
+                satellites.splice(s, 1);
+                setSatelliteCount(satellites.length);
+                if (satellites.length === 0 && timerStopRef.current === null) {
+                  timerStopRef.current = now;
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      for (let e = explosions.length - 1; e >= 0; e -= 1) {
+        const explosion = explosions[e];
+        explosion.ttl -= dt;
+        const life = Math.max(explosion.ttl, 0);
+        const scale = 1 + (0.6 - life) * 2.2;
+        explosion.mesh.scaling.setAll(scale);
+        const mat = explosion.mesh.material as StandardMaterial;
+        if (mat) {
+          mat.alpha = Math.max(0, life / 0.6);
+        }
+        if (explosion.ttl <= 0) {
+          explosion.mesh.dispose();
+          explosions.splice(e, 1);
+        }
+      }
+
+      for (let p = sparkParticles.length - 1; p >= 0; p -= 1) {
+        const spark = sparkParticles[p];
+        spark.mesh.position.addInPlace(spark.velocity.scale(dt));
+        spark.velocity.scaleInPlace(0.92);
+        spark.ttl -= dt;
+        const mat = spark.mesh.material as StandardMaterial;
+        if (mat) {
+          mat.alpha = Math.max(0, spark.ttl / 0.4);
+        }
+        if (spark.ttl <= 0) {
+          spark.mesh.dispose();
+          sparkParticles.splice(p, 1);
+        }
+      }
+
+      if (timerStartRef.current === null) {
+        timerStartRef.current = now;
       }
 
       if (now - lastHudUpdate > 120) {
         setVelocity(speed);
         lastHudUpdate = now;
+        if (timerStartRef.current !== null) {
+          const stopTime = timerStopRef.current ?? now;
+          setElapsedSeconds((stopTime - timerStartRef.current) / 1000);
+        }
       }
 
-      if (enemyRoot) {
-        const orbitAngle = performance.now() * enemyOrbitRate;
-        const orbitHeight = enemyOrbitHeight + Math.sin(orbitAngle * 1.4) * 10;
-        const orbitPosition = planetCenter.add(
-          new Vector3(
-            Math.cos(orbitAngle) * enemyOrbitRadius,
-            orbitHeight,
-            Math.sin(orbitAngle) * enemyOrbitRadius
-          )
-        );
-        enemyRoot.position.copyFrom(orbitPosition);
+      if (satellites.length > 0) {
+        const nowMs = performance.now();
+        satellites.forEach((satellite) => {
+          const radius = planetRadius + satellite.altitude;
+          const maxOmega = satelliteMaxSpeed / radius;
+          const omega = Math.min(satellite.speed, maxOmega);
+          const angle = satellite.angle + nowMs * omega;
+          const base = new Vector3(radius, 0, 0);
+          const tilted = Vector3.TransformCoordinates(
+            base,
+            Matrix.RotationZ(satellite.tilt)
+          );
+          const orbitPosition = Vector3.TransformCoordinates(
+            tilted,
+            Matrix.RotationY(angle)
+          );
+          satellite.node.position.copyFrom(planetCenter.add(orbitPosition));
 
-        const travelDirection = new Vector3(
-          -Math.sin(orbitAngle),
-          0,
-          Math.cos(orbitAngle)
-        ).normalize();
-        const yaw = Math.atan2(travelDirection.x, travelDirection.z);
-        const pitch = Math.asin(-travelDirection.y);
-        enemyRoot.rotationQuaternion = Quaternion.RotationYawPitchRoll(
-          yaw,
-          pitch,
-          0
-        );
+          const travelDirection = new Vector3(
+            -Math.sin(angle),
+            0,
+            Math.cos(angle)
+          ).normalize();
+          const yaw = Math.atan2(travelDirection.x, travelDirection.z);
+          satellite.node.rotationQuaternion = Quaternion.RotationYawPitchRoll(
+            yaw,
+            0,
+            0
+          );
+
+          const blinkValue =
+            Math.sin(nowMs * 0.008 + satellite.blinkPhase) * 0.5 + 0.5;
+          satellite.blink.scaling.setAll(0.6 + blinkValue * 0.8);
+          const blinkMat = satellite.blink.material as StandardMaterial;
+          if (blinkMat) {
+            blinkMat.emissiveColor = new Color3(
+              0.1 + blinkValue * 0.3,
+              0.7 + blinkValue * 0.3,
+              0.9 + blinkValue * 0.2
+            );
+          }
+        });
       }
 
       scene.render();
@@ -473,9 +722,10 @@ export default function SpaceDogsPage() {
     window.addEventListener("resize", handleResize);
 
     return () => {
+      isMounted = false;
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
-      
+
       window.removeEventListener("resize", handleResize);
       scene.dispose();
       engine.dispose();
@@ -490,8 +740,8 @@ export default function SpaceDogsPage() {
           <h1>Space Dogs</h1>
           <p className={styles.status}>Under construction</p>
           <p className={styles.lead}>
-            Dive into a quick dogfight near a blue giant. Two ships, one orbit,
-            and a whole lot of cosmic pressure.
+            Dive into a quick dogfight above a scorched, ember-cracked planet.
+            Destroy every satellite as fast as you can.
           </p>
         </div>
       </header>
@@ -499,6 +749,13 @@ export default function SpaceDogsPage() {
       <section className={styles.stage}>
         <div className={styles.viewport}>
           <canvas ref={canvasRef} className={styles.canvas} />
+          {!assetsLoaded && (
+            <div className={styles.loading}>
+              <div className={styles.loadingCard}>
+                <span>Loading universe...</span>
+              </div>
+            </div>
+          )}
           <div className={styles.overlay} aria-hidden="true">
             <div className={styles.reticle} />
             <div className={styles.readoutLeft}>
@@ -508,12 +765,12 @@ export default function SpaceDogsPage() {
               <strong>74%</strong>
             </div>
             <div className={styles.readoutRight}>
-              <span className={styles.label}>Vector</span>
-              <strong>NE-03</strong>
-              <span className={styles.label}>Lock</span>
-              <strong>Tracking</strong>
+              <span className={styles.label}>Satellites</span>
+              <strong>{satelliteCount}</strong>
               <span className={styles.label}>Velocity</span>
-              <strong>{velocity.toFixed(1)} u/s</strong>
+              <strong>{velocity.toFixed(1)} m/s</strong>
+              <span className={styles.label}>Timer</span>
+              <strong>{formatTime(elapsedSeconds)}</strong>
             </div>
             <div className={styles.scanline} />
             <div className={styles.canopy} />
@@ -524,7 +781,6 @@ export default function SpaceDogsPage() {
             W/S = pitch · A/D = yaw · K/; = roll · O = throttle · L = reverse ·
             Space = fire
           </span>
-          <span>First-person cockpit view</span>
         </div>
       </section>
 
