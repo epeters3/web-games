@@ -144,94 +144,114 @@ export default function SpaceDogsPage() {
 
     void loadPlanet();
 
-    let satelliteRoot: TransformNode | null = null;
-    let satelliteMeshes: Mesh[] = [];
+    let ufoRoot: TransformNode | null = null;
+    let ufoMeshes: Mesh[] = [];
+    type BeamState = "idle" | "beaming" | "waiting";
     const satellites: {
       node: TransformNode;
       angle: number;
       speed: number;
       tilt: number;
       altitude: number;
-      blink: Mesh;
-      blinkPhase: number;
       health: number;
+      // Tractor beam properties
+      beamMesh: Mesh;
+      beamLight: PointLight;
+      lumpMesh: Mesh;
+      beamState: BeamState;
+      beamTimer: number;
+      lumpProgress: number;
     }[] = [];
 
-    const loadSatellites = async () => {
+    const beamDuration = 2.5; // seconds for lump to travel up
+    const getRandomBeamDelay = () => 1 + Math.random() * 4; // 1-5 seconds
+
+    const loadUfos = async () => {
       try {
         const result = await SceneLoader.ImportMeshAsync(
           "",
           assetPath,
-          "space_satellite_1k.glb",
+          "ufo_flying_saucer_spaceship_ovni_1k.glb",
           scene
         );
         const rootNodes = result.meshes.filter((mesh) => mesh.parent === null);
         const primaryRoot = rootNodes[0] ?? result.meshes[0];
         rootNodes.slice(1).forEach((root) => root.setEnabled(false));
 
-        const satelliteContainer = new TransformNode(
-          "satelliteContainer",
-          scene
-        );
-        satelliteRoot = satelliteContainer;
-        satelliteRoot.rotationQuaternion = Quaternion.Identity();
+        const ufoContainer = new TransformNode("ufoContainer", scene);
+        ufoRoot = ufoContainer;
+        ufoRoot.rotationQuaternion = Quaternion.Identity();
 
         if (primaryRoot) {
-          primaryRoot.parent = satelliteRoot;
+          primaryRoot.parent = ufoRoot;
           const childMeshes = primaryRoot.getChildMeshes(false);
-          satelliteMeshes = [
+          ufoMeshes = [
             ...childMeshes.filter((mesh): mesh is Mesh => mesh instanceof Mesh),
             ...(primaryRoot instanceof Mesh ? [primaryRoot] : []),
           ];
-          satelliteMeshes.forEach((mesh) => glow.addIncludedOnlyMesh(mesh));
+          // Hide original meshes - we only want the instances to be visible
+          ufoMeshes.forEach((mesh) => {
+            mesh.isVisible = false;
+            glow.addIncludedOnlyMesh(mesh);
+          });
         }
 
-        if (satelliteRoot && satelliteMeshes.length > 0) {
+        if (ufoRoot && ufoMeshes.length > 0) {
           for (let i = 0; i < 12; i += 1) {
-            const node = new TransformNode(`satellite-${i}`, scene);
-            node.parent = satelliteRoot;
+            const node = new TransformNode(`ufo-${i}`, scene);
+            node.parent = ufoRoot;
             node.rotationQuaternion = Quaternion.Identity();
             node.scaling = new Vector3(1, 1, 1);
 
-            satelliteMeshes.forEach((mesh) => {
-              const instance = mesh.createInstance(`sat-${mesh.name}-${i}`);
+            ufoMeshes.forEach((mesh) => {
+              const instance = mesh.createInstance(`ufo-${mesh.name}-${i}`);
               instance.parent = node;
+              // Instances don't inherit source mesh's parent transforms.
+              // 0.003 scale makes UFOs roughly satellite-sized
+              instance.scaling = new Vector3(0.003, 0.003, 0.003);
             });
 
-            const blink = MeshBuilder.CreateSphere(
-              `satellite-blink-${i}`,
-              { diameter: 0.5, segments: 6 },
+            // Create tractor beam (cone pointing down)
+            const beamMesh = MeshBuilder.CreateCylinder(
+              `tractor-beam-${i}`,
+              {
+                diameterTop: 0.2,
+                diameterBottom: 1,
+                height: 1,
+                tessellation: 24,
+              },
               scene
             );
-            const blinkMat = new StandardMaterial(
-              `satellite-blink-mat-${i}`,
-              scene
-            );
-            blinkMat.emissiveColor = new Color3(0.2, 0.9, 1);
-            blinkMat.disableLighting = true;
-            blink.material = blinkMat;
-            blink.parent = node;
-            glow.addIncludedOnlyMesh(blink);
+            const beamMat = new StandardMaterial(`beam-mat-${i}`, scene);
+            beamMat.emissiveColor = new Color3(1, 0.15, 0.1);
+            beamMat.diffuseColor = new Color3(1, 0.2, 0.15);
+            beamMat.alpha = 0.4;
+            beamMat.disableLighting = true;
+            beamMesh.material = beamMat;
+            beamMesh.isVisible = false;
+            glow.addIncludedOnlyMesh(beamMesh);
 
-            let min = new Vector3(
-              Number.POSITIVE_INFINITY,
-              Number.POSITIVE_INFINITY,
-              Number.POSITIVE_INFINITY
+            // Create beam light
+            const beamLight = new PointLight(
+              `beam-light-${i}`,
+              Vector3.Zero(),
+              scene
             );
-            let max = new Vector3(
-              Number.NEGATIVE_INFINITY,
-              Number.NEGATIVE_INFINITY,
-              Number.NEGATIVE_INFINITY
+            beamLight.intensity = 0;
+            beamLight.range = 15;
+            beamLight.diffuse = new Color3(1, 0.2, 0.1);
+
+            // Create lump (brown sphere being beamed up)
+            const lumpMesh = MeshBuilder.CreateSphere(
+              `lump-${i}`,
+              { diameter: 0.15, segments: 8 },
+              scene
             );
-            node.getChildMeshes(false).forEach((child) => {
-              child.computeWorldMatrix(true);
-              const bounds = child.getBoundingInfo().boundingBox;
-              min = Vector3.Minimize(min, bounds.minimum);
-              max = Vector3.Maximize(max, bounds.maximum);
-            });
-            const centerX = (min.x + max.x) * 0.5;
-            const centerY = (min.y + max.y) * 0.5;
-            blink.position = new Vector3(centerX, centerY, min.z);
+            const lumpMat = new StandardMaterial(`lump-mat-${i}`, scene);
+            lumpMat.diffuseColor = new Color3(0.45, 0.28, 0.12);
+            lumpMat.emissiveColor = new Color3(0.15, 0.08, 0.02);
+            lumpMesh.material = lumpMat;
+            lumpMesh.isVisible = false;
 
             satellites.push({
               node,
@@ -239,21 +259,28 @@ export default function SpaceDogsPage() {
               speed: 0.00008 + Math.random() * 0.00012,
               tilt: (Math.random() - 0.5) * Math.PI * 0.6,
               altitude: 10 + Math.random() * 15,
-              blink,
-              blinkPhase: Math.random() * Math.PI * 2,
               health: 5,
+              beamMesh,
+              beamLight,
+              lumpMesh,
+              beamState: "waiting",
+              beamTimer: getRandomBeamDelay() * Math.random(), // Stagger initial starts
+              lumpProgress: 0,
             });
           }
           setSatelliteCount(satellites.length);
         }
       } catch (error) {
-        console.error("Failed to load space_satellite_1k.glb", error);
+        console.error(
+          "Failed to load ufo_flying_saucer_spaceship_ovni_1k.glb",
+          error
+        );
       } finally {
         markLoaded("satellites");
       }
     };
 
-    void loadSatellites();
+    void loadUfos();
 
     const playerRadius = 1.1;
     const player = MeshBuilder.CreateBox(
@@ -429,12 +456,12 @@ export default function SpaceDogsPage() {
     const angularAccel = 2.6;
     const thrustAccel = 16;
     const playerMaxSpeed = 36;
-    const satelliteMaxSpeed = 17.5;
+    const satelliteMaxSpeed = 15;
     const linearDamping = 0.985;
     const angularDamping = 0.9;
     const laserLifetime = 0.7;
     const laserSpeed = 300;
-    const satelliteHitRadius = 1.2;
+    const satelliteHitRadius = 1;
     const lasers: {
       mesh: ReturnType<typeof MeshBuilder.CreateCylinder>;
       light: PointLight;
@@ -451,7 +478,7 @@ export default function SpaceDogsPage() {
     const spawnLaser = () => {
       const beam = MeshBuilder.CreateCylinder(
         "laser",
-        { diameter: 0.12, height: 4.5, tessellation: 12 },
+        { diameter: 0.12, height: 10, tessellation: 12 },
         scene
       );
       const beamMat = new StandardMaterial("laserMat", scene);
@@ -614,6 +641,9 @@ export default function SpaceDogsPage() {
               if (satellite.health <= 0) {
                 spawnSparks(satellite.node.getAbsolutePosition(), 12);
                 spawnExplosion(satellite.node.getAbsolutePosition());
+                satellite.beamMesh.dispose();
+                satellite.beamLight.dispose();
+                satellite.lumpMesh.dispose();
                 satellite.node.dispose(false, true);
                 satellites.splice(s, 1);
                 setSatelliteCount(satellites.length);
@@ -673,44 +703,132 @@ export default function SpaceDogsPage() {
 
       if (satellites.length > 0) {
         const nowMs = performance.now();
-        satellites.forEach((satellite) => {
-          const radius = planetRadius + satellite.altitude;
+        satellites.forEach((ufo) => {
+          const radius = planetRadius + ufo.altitude;
           const maxOmega = satelliteMaxSpeed / radius;
-          const omega = Math.min(satellite.speed, maxOmega);
-          const angle = satellite.angle + nowMs * omega;
+          const omega = Math.min(ufo.speed, maxOmega);
+          const angle = ufo.angle + nowMs * omega;
           const base = new Vector3(radius, 0, 0);
           const tilted = Vector3.TransformCoordinates(
             base,
-            Matrix.RotationZ(satellite.tilt)
+            Matrix.RotationZ(ufo.tilt)
           );
           const orbitPosition = Vector3.TransformCoordinates(
             tilted,
             Matrix.RotationY(angle)
           );
-          satellite.node.position.copyFrom(planetCenter.add(orbitPosition));
+          const ufoPosition = planetCenter.add(orbitPosition);
+          ufo.node.position.copyFrom(ufoPosition);
 
-          const travelDirection = new Vector3(
-            -Math.sin(angle),
-            0,
-            Math.cos(angle)
+          // UFO faces down towards planet (bottom of UFO points at planet center)
+          const downDirection = planetCenter.subtract(ufoPosition).normalize();
+          const upDirection = downDirection.scale(-1);
+          // Create rotation that aligns local Y-up with the direction away from planet
+          const forward = Vector3.Cross(
+            Vector3.Right(),
+            upDirection
           ).normalize();
-          const yaw = Math.atan2(travelDirection.x, travelDirection.z);
-          satellite.node.rotationQuaternion = Quaternion.RotationYawPitchRoll(
-            yaw,
+          const right = Vector3.Cross(upDirection, forward).normalize();
+          const rotationMatrix = Matrix.FromValues(
+            right.x,
+            right.y,
+            right.z,
             0,
-            0
+            upDirection.x,
+            upDirection.y,
+            upDirection.z,
+            0,
+            forward.x,
+            forward.y,
+            forward.z,
+            0,
+            0,
+            0,
+            0,
+            1
           );
+          ufo.node.rotationQuaternion =
+            Quaternion.FromRotationMatrix(rotationMatrix);
 
-          const blinkValue =
-            Math.sin(nowMs * 0.008 + satellite.blinkPhase) * 0.5 + 0.5;
-          satellite.blink.scaling.setAll(0.6 + blinkValue * 0.8);
-          const blinkMat = satellite.blink.material as StandardMaterial;
-          if (blinkMat) {
-            blinkMat.emissiveColor = new Color3(
-              0.1 + blinkValue * 0.3,
-              0.7 + blinkValue * 0.3,
-              0.9 + blinkValue * 0.2
+          // Tractor beam animation
+          const surfacePoint = planetCenter.add(
+            ufoPosition.subtract(planetCenter).normalize().scale(planetRadius)
+          );
+          const beamLength = Vector3.Distance(ufoPosition, surfacePoint);
+
+          // Update beam timer and state
+          if (ufo.beamState === "waiting") {
+            ufo.beamTimer -= dt;
+            if (ufo.beamTimer <= 0) {
+              ufo.beamState = "beaming";
+              ufo.lumpProgress = 0;
+              ufo.beamMesh.isVisible = true;
+              ufo.lumpMesh.isVisible = true;
+              ufo.beamLight.intensity = 2.5;
+            }
+          } else if (ufo.beamState === "beaming") {
+            ufo.lumpProgress += dt / beamDuration;
+            if (ufo.lumpProgress >= 1) {
+              ufo.beamState = "waiting";
+              ufo.beamTimer = getRandomBeamDelay();
+              ufo.beamMesh.isVisible = false;
+              ufo.lumpMesh.isVisible = false;
+              ufo.beamLight.intensity = 0;
+              ufo.lumpProgress = 0;
+            }
+          }
+
+          // Position and scale beam
+          if (ufo.beamMesh.isVisible) {
+            const beamCenter = ufoPosition.add(surfacePoint).scale(0.5);
+            ufo.beamMesh.position.copyFrom(beamCenter);
+            // Scale beam to reach from UFO to surface
+            ufo.beamMesh.scaling = new Vector3(1, beamLength, 1);
+            // Rotate beam to point towards planet
+            const beamUp = downDirection;
+            const beamForward = Vector3.Cross(
+              Vector3.Right(),
+              beamUp
+            ).normalize();
+            const beamRight = Vector3.Cross(beamUp, beamForward).normalize();
+            const beamRotMatrix = Matrix.FromValues(
+              beamRight.x,
+              beamRight.y,
+              beamRight.z,
+              0,
+              beamUp.x,
+              beamUp.y,
+              beamUp.z,
+              0,
+              beamForward.x,
+              beamForward.y,
+              beamForward.z,
+              0,
+              0,
+              0,
+              0,
+              1
             );
+            ufo.beamMesh.rotationQuaternion =
+              Quaternion.FromRotationMatrix(beamRotMatrix);
+
+            // Pulsing beam effect
+            const pulse = Math.sin(nowMs * 0.012) * 0.15 + 0.85;
+            const beamMat = ufo.beamMesh.material as StandardMaterial;
+            if (beamMat) {
+              beamMat.alpha = 0.35 * pulse;
+            }
+
+            // Position lump along beam path
+            const lumpT = ufo.lumpProgress;
+            const lumpPos = Vector3.Lerp(surfacePoint, ufoPosition, lumpT);
+            ufo.lumpMesh.position.copyFrom(lumpPos);
+            // Scale lump (smaller at start, grows slightly)
+            const lumpScale = 0.8 + lumpT * 0.4;
+            ufo.lumpMesh.scaling.setAll(lumpScale);
+
+            // Position beam light
+            ufo.beamLight.position.copyFrom(lumpPos);
           }
         });
       }
@@ -736,12 +854,13 @@ export default function SpaceDogsPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>Skirmish Level</p>
+          <p className={styles.eyebrow}>Defense Mission</p>
           <h1>Space Dogs</h1>
           <p className={styles.status}>Under construction</p>
           <p className={styles.lead}>
-            Dive into a quick dogfight above a scorched, ember-cracked planet.
-            Destroy every satellite as fast as you can.
+            Alien mining drones are stealing Embrium—the galaxy's most precious
+            substance—from our volcanic reserves. Destroy all drones before they
+            drain the planet dry.
           </p>
         </div>
       </header>
@@ -765,7 +884,7 @@ export default function SpaceDogsPage() {
               <strong>74%</strong>
             </div>
             <div className={styles.readoutRight}>
-              <span className={styles.label}>Satellites</span>
+              <span className={styles.label}>Drones</span>
               <strong>{satelliteCount}</strong>
               <span className={styles.label}>Velocity</span>
               <strong>{velocity.toFixed(1)} m/s</strong>

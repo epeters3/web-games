@@ -41,6 +41,8 @@ const main = async () => {
 
   for (const mesh of meshes) {
     mesh.computeWorldMatrix(true);
+    // Force refresh bounding info to account for world transforms
+    mesh.refreshBoundingInfo({ applySkeleton: false, applyMorph: false });
     const bounds = mesh.getBoundingInfo().boundingBox;
     min = Vector3.Minimize(min, bounds.minimumWorld);
     max = Vector3.Maximize(max, bounds.maximumWorld);
