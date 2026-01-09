@@ -40,7 +40,7 @@ export const embriumDefense: LevelConfig = {
   // Enemies (UFO drones)
   enemies: {
     asset: "ufo_flying_saucer_spaceship_ovni_1k.glb",
-    count: 1,
+    count: 6,
     scale: 0.003,
     maxSpeed: 10,
     health: 5,
