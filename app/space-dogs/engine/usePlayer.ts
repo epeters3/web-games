@@ -22,6 +22,7 @@ export interface PlayerResult {
   angularVelocity: Vector3;
   fireRequested: React.MutableRefObject<boolean>;
   updatePlayer: (dt: number, environmentState: EnvironmentState) => number; // returns speed
+  resetPlayer: () => void;
 }
 
 export const usePlayer = (
@@ -237,6 +238,33 @@ export const usePlayer = (
     [config]
   );
 
+  const resetPlayer = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    const { player: playerConfig } = config;
+
+    // Reset position
+    player.position = new Vector3(...playerConfig.startPosition);
+
+    // Reset rotation
+    player.rotationQuaternion = Quaternion.Identity();
+    if (playerConfig.lookAt) {
+      player.lookAt(new Vector3(...playerConfig.lookAt));
+    }
+
+    // Reset velocities
+    linearVelocityRef.current.setAll(0);
+    angularVelocityRef.current.setAll(0);
+
+    // Reset control state
+    const defaultState = createDefaultControlState();
+    Object.assign(controlStateRef.current, defaultState);
+
+    // Reset fire requested
+    fireRequestedRef.current = false;
+  }, [config]);
+
   return {
     player: playerRef.current,
     camera: cameraRef.current,
@@ -245,5 +273,6 @@ export const usePlayer = (
     angularVelocity: angularVelocityRef.current,
     fireRequested: fireRequestedRef,
     updatePlayer,
+    resetPlayer,
   };
 };

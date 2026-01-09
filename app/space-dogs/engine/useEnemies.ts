@@ -21,6 +21,7 @@ export interface EnemiesResult {
   loadEnemies: () => Promise<void>;
   updateEnemies: (dt: number, environmentState: EnvironmentState) => void;
   removeDrone: (index: number) => void;
+  resetEnemies: () => Promise<void>;
 }
 
 export const useEnemies = (
@@ -555,11 +556,28 @@ export const useEnemies = (
     setDroneCount(drones.length);
   }, []);
 
+  const resetEnemies = useCallback(async () => {
+    // Dispose all existing drones
+    const drones = dronesRef.current;
+    for (const drone of drones) {
+      drone.beamMesh.dispose();
+      drone.beamLight.dispose();
+      drone.lumpMesh.dispose();
+      drone.node.dispose(false, true);
+    }
+    dronesRef.current = [];
+    setDroneCount(0);
+
+    // Reload enemies
+    await loadEnemies();
+  }, [loadEnemies]);
+
   return {
     drones: dronesRef.current,
     droneCount,
     loadEnemies,
     updateEnemies,
     removeDrone,
+    resetEnemies,
   };
 };

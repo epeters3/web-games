@@ -21,6 +21,12 @@ export const Game: React.FC<GameProps> = ({ config }) => {
   const timerStartRef = useRef<number | null>(null);
   const timerStopRef = useRef<number | null>(null);
   const [enemiesLoaded, setEnemiesLoaded] = useState(false);
+  const [isVictory, setIsVictory] = useState(false);
+  const [finalTime, setFinalTime] = useState<number | null>(null);
+  const [bestTime, setBestTime] = useState<number | null>(null);
+  const [isNewBest, setIsNewBest] = useState(false);
+  const [destroyedEnemyCount, setDestroyedEnemyCount] = useState(0);
+  const initialEnemyCountRef = useRef<number | null>(null);
 
   // Asset path
   const assetPath = (() => {
@@ -42,10 +48,8 @@ export const Game: React.FC<GameProps> = ({ config }) => {
   } = useGameEngine(config);
 
   // Initialize player
-  const { player, controlState, fireRequested, updatePlayer } = usePlayer(
-    scene,
-    config
-  );
+  const { player, controlState, fireRequested, updatePlayer, resetPlayer } =
+    usePlayer(scene, config);
 
   // Initialize effects
   const { spawnExplosion, spawnSparks, updateEffects } = useEffects(
@@ -62,15 +66,66 @@ export const Game: React.FC<GameProps> = ({ config }) => {
   );
 
   // Initialize enemies
-  const { drones, droneCount, loadEnemies, updateEnemies, removeDrone } =
-    useEnemies(scene, glow, config, assetPath);
+  const {
+    drones,
+    droneCount,
+    loadEnemies,
+    updateEnemies,
+    removeDrone,
+    resetEnemies,
+  } = useEnemies(scene, glow, config, assetPath);
+
+  // Load best time from localStorage on mount
+  useEffect(() => {
+    const storedBest = localStorage.getItem(`best-time-${config.id}`);
+    if (storedBest) {
+      const parsed = parseFloat(storedBest);
+      if (!isNaN(parsed)) {
+        setBestTime(parsed);
+      }
+    }
+  }, [config.id]);
+
+  // Reset game function
+  const resetGame = useCallback(async () => {
+    // Reset all game state
+    setIsVictory(false);
+    setFinalTime(null);
+    setIsNewBest(false);
+    setDestroyedEnemyCount(0);
+    setElapsedSeconds(0);
+    setVelocity(0);
+    timerStartRef.current = null;
+    timerStopRef.current = null;
+    initialEnemyCountRef.current = null;
+
+    // Mark enemies as not loaded during reset
+    setEnemiesLoaded(false);
+
+    // Reset player position, rotation, and velocities
+    resetPlayer();
+
+    // Reset and reload enemies
+    // The useEffect below will detect when enemies are loaded and set enemiesLoaded back to true
+    await resetEnemies();
+  }, [resetEnemies, resetPlayer]);
 
   // Load enemies when scene is ready
   useEffect(() => {
     if (scene && glow && sceneLoaded && !enemiesLoaded) {
-      loadEnemies().then(() => setEnemiesLoaded(true));
+      loadEnemies().then(() => {
+        setEnemiesLoaded(true);
+      });
     }
   }, [scene, glow, sceneLoaded, enemiesLoaded, loadEnemies]);
+
+  // After reset, wait for enemies to actually be loaded before marking as loaded
+  useEffect(() => {
+    if (!enemiesLoaded && (droneCount > 0 || drones.length > 0)) {
+      // Enemies were loaded (likely from resetEnemies), mark as loaded
+      setEnemiesLoaded(true);
+    }
+  }, [enemiesLoaded, droneCount, drones.length]);
 
   // Handle drone destruction
   const handleDroneDestroyed = useCallback(
@@ -80,12 +135,9 @@ export const Game: React.FC<GameProps> = ({ config }) => {
     ) => {
       spawnExplosion(drone.node.getAbsolutePosition());
       removeDrone(index);
-
-      if (drones.length === 1 && timerStopRef.current === null) {
-        timerStopRef.current = performance.now();
-      }
+      setDestroyedEnemyCount((prev) => prev + 1);
     },
-    [spawnExplosion, removeDrone, drones.length]
+    [spawnExplosion, removeDrone]
   );
 
   const handleDroneHit = useCallback(() => {
@@ -130,8 +182,78 @@ export const Game: React.FC<GameProps> = ({ config }) => {
       // Update enemies
       updateEnemies(dt, environmentState);
 
-      // Start timer
-      if (timerStartRef.current === null) {
+      // Track initial enemy count when enemies are first loaded
+      // Only set it if we actually have enemies (count > 0)
+      if (enemiesLoaded && initialEnemyCountRef.current === null) {
+        const currentCount = droneCount > 0 ? droneCount : drones.length;
+        if (currentCount > 0) {
+          initialEnemyCountRef.current = currentCount;
+        }
+      }
+
+      // Check for victory based on level-specific condition
+      // Only check if enemies are loaded and game has started
+      // Don't check for victory immediately after reset - wait for timer to actually run
+      const minTimeSinceTimerStart = timerStartRef.current
+        ? now - timerStartRef.current
+        : Infinity;
+
+      if (
+        enemiesLoaded &&
+        initialEnemyCountRef.current !== null &&
+        initialEnemyCountRef.current > 0 &&
+        timerStopRef.current === null &&
+        !isVictory &&
+        timerStartRef.current &&
+        minTimeSinceTimerStart > 100 // Wait at least 100ms after timer starts to avoid reset race condition
+      ) {
+        let victoryAchieved = false;
+        const victoryCondition = config.victory;
+
+        switch (victoryCondition.type) {
+          case "destroy-all":
+            // Victory when all enemies are destroyed (but only if we started with enemies)
+            // Double-check that we actually had enemies before checking if they're all gone
+            victoryAchieved =
+              (droneCount === 0 || drones.length === 0) &&
+              initialEnemyCountRef.current > 0;
+            break;
+
+          case "destroy-count":
+            // Victory when specific number of enemies are destroyed
+            victoryAchieved = destroyedEnemyCount >= victoryCondition.count;
+            break;
+
+          case "survive-time":
+            // Victory when player survives for the required duration
+            const elapsed = (now - timerStartRef.current) / 1000;
+            victoryAchieved = elapsed >= victoryCondition.duration;
+            break;
+        }
+
+        if (victoryAchieved) {
+          timerStopRef.current = now;
+          const calculatedFinalTime = (now - timerStartRef.current) / 1000;
+          setFinalTime(calculatedFinalTime);
+          setIsVictory(true);
+
+          // Check if this is a new best time (get from localStorage to avoid race conditions)
+          const storedBest = localStorage.getItem(`best-time-${config.id}`);
+          const currentBest = storedBest ? parseFloat(storedBest) : null;
+
+          if (currentBest === null || calculatedFinalTime < currentBest) {
+            setIsNewBest(true);
+            setBestTime(calculatedFinalTime);
+            localStorage.setItem(
+              `best-time-${config.id}`,
+              calculatedFinalTime.toString()
+            );
+          }
+        }
+      }
+
+      // Start timer only after enemies are loaded
+      if (timerStartRef.current === null && enemiesLoaded) {
         timerStartRef.current = now;
       }
 
@@ -172,6 +294,13 @@ export const Game: React.FC<GameProps> = ({ config }) => {
     spawnSparks,
     lastShotTime,
     config.weapons.fireRate,
+    config.victory,
+    droneCount,
+    destroyedEnemyCount,
+    enemiesLoaded,
+    isVictory,
+    bestTime,
+    config.id,
   ]);
 
   // Format time for display
@@ -200,6 +329,32 @@ export const Game: React.FC<GameProps> = ({ config }) => {
           </div>
         )}
 
+        {isVictory && finalTime !== null && (
+          <div className={styles.victory}>
+            <div className={styles.victoryCard}>
+              <h2 className={styles.victoryTitle}>You won!</h2>
+              <div className={styles.victoryTime}>
+                <span className={styles.victoryLabel}>Time</span>
+                <strong className={styles.victoryTimeValue}>
+                  {formatTime(finalTime)}
+                </strong>
+              </div>
+              {isNewBest && (
+                <div className={styles.newBest}>
+                  <span>New Best Time!</span>
+                </div>
+              )}
+              <button
+                className={styles.playAgainButton}
+                onClick={resetGame}
+                type="button"
+              >
+                Play Again
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className={styles.overlay} aria-hidden="true">
           <div className={styles.reticle} />
           <div className={styles.readoutLeft}>
@@ -215,6 +370,12 @@ export const Game: React.FC<GameProps> = ({ config }) => {
             <strong>{velocity.toFixed(1)} m/s</strong>
             <span className={styles.label}>Timer</span>
             <strong>{formatTime(elapsedSeconds)}</strong>
+            {bestTime !== null && (
+              <>
+                <span className={styles.label}>Best Time</span>
+                <strong>{formatTime(bestTime)}</strong>
+              </>
+            )}
           </div>
           <div className={styles.scanline} />
           <div className={styles.canopy} />

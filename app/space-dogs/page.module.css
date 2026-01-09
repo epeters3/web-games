@@ -106,6 +106,113 @@
   font-size: 0.8rem;
 }
 
+.victory {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 6, 12, 0.85);
+  z-index: 3;
+  backdrop-filter: blur(8px);
+}
+
+.victoryCard {
+  padding: 2.5rem 3rem;
+  border-radius: 20px;
+  border: 2px solid rgba(60, 240, 210, 0.5);
+  background: rgba(7, 14, 28, 0.95);
+  color: var(--cool);
+  text-align: center;
+  box-shadow: 0 0 60px rgba(60, 240, 210, 0.3),
+    inset 0 0 40px rgba(60, 240, 210, 0.1);
+  min-width: 320px;
+}
+
+.victoryTitle {
+  font-size: 2.4rem;
+  margin: 0 0 1.5rem;
+  color: #eafcff;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-weight: 600;
+}
+
+.victoryTime {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.victoryLabel {
+  color: rgba(234, 252, 255, 0.6);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+}
+
+.victoryTimeValue {
+  font-size: 2rem;
+  color: #3cf0d2;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.newBest {
+  margin-top: 1.2rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  background: rgba(60, 240, 210, 0.2);
+  border: 1px solid rgba(60, 240, 210, 0.4);
+  color: #3cf0d2;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-weight: 600;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.playAgainButton {
+  margin-top: 1.8rem;
+  padding: 0.9rem 2rem;
+  border-radius: 999px;
+  background: rgba(60, 240, 210, 0.15);
+  border: 2px solid rgba(60, 240, 210, 0.5);
+  color: #3cf0d2;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  pointer-events: auto;
+}
+
+.playAgainButton:hover {
+  background: rgba(60, 240, 210, 0.25);
+  border-color: rgba(60, 240, 210, 0.7);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(60, 240, 210, 0.3);
+}
+
+.playAgainButton:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(60, 240, 210, 0.2);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
 .reticle {
   position: absolute;
   top: 50%;

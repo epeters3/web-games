@@ -218,6 +218,37 @@ export type EnemyMovementConfig =
   | StationaryMovement;
 
 // =============================================================================
+// Victory Condition Configuration
+// =============================================================================
+
+export type VictoryConditionType =
+  | "destroy-all"
+  | "destroy-count"
+  | "survive-time";
+
+// Destroy all enemies
+export interface DestroyAllVictory {
+  type: "destroy-all";
+}
+
+// Destroy a specific number of enemies
+export interface DestroyCountVictory {
+  type: "destroy-count";
+  count: number;
+}
+
+// Survive for a specific amount of time
+export interface SurviveTimeVictory {
+  type: "survive-time";
+  duration: number; // seconds
+}
+
+export type VictoryCondition =
+  | DestroyAllVictory
+  | DestroyCountVictory
+  | SurviveTimeVictory;
+
+// =============================================================================
 // Level Configuration
 // =============================================================================
 
@@ -297,6 +328,9 @@ export interface LevelConfig {
     scaleMin: number;
     scaleMax: number;
   };
+
+  // Victory condition
+  victory: VictoryCondition;
 
   // Optional custom setup
   customSetup?: (scene: Scene) => void;

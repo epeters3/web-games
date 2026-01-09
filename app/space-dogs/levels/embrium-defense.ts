@@ -40,7 +40,7 @@ export const embriumDefense: LevelConfig = {
   // Enemies (UFO drones)
   enemies: {
     asset: "ufo_flying_saucer_spaceship_ovni_1k.glb",
-    count: 12,
+    count: 1,
     scale: 0.003,
     maxSpeed: 10,
     health: 5,
@@ -101,5 +101,10 @@ export const embriumDefense: LevelConfig = {
     radiusMax: 460,
     scaleMin: 0.6,
     scaleMax: 2.0,
+  },
+
+  // Victory condition - destroy all drones
+  victory: {
+    type: "destroy-all",
   },
 };
