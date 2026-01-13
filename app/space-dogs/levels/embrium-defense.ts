@@ -76,10 +76,10 @@ export const embriumDefense: LevelConfig = {
   player: {
     startPosition: [0, 6, 220],
     lookAt: [-18, -10, 0], // Look at planet
-    maxSpeed: 36,
+    maxSpeed: 54,
     thrustAccel: 16,
-    angularAccel: 2.6,
-    linearDamping: 0.985,
+    angularAccel: 3.9,
+    linearDamping: 0.99,
     angularDamping: 0.9,
     radius: 1.1,
   },
