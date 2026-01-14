@@ -317,11 +317,11 @@ export default function SpaceSnakePage() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
+      <header className={`header-grid ${styles.header}`}>
         <div>
-          <p className={styles.eyebrow}>Arcade Run</p>
+          <p className={`eyebrow ${styles.eyebrowSpacing}`}>Arcade Run</p>
           <h1>Space Snake</h1>
-          <p className={styles.lead}>
+          <p className={`lead ${styles.leadSpacing}`}>
             Neon trails in deep space. Eat asteroids, grow your monster, and
             avoid your own tail.
           </p>
@@ -340,7 +340,7 @@ export default function SpaceSnakePage() {
         </div>
       </header>
 
-      <section className={styles.stage}>
+      <section className={`stage-shell ${styles.stage}`}>
         <div className={styles.scoreboard}>
           <span>Score</span>
           <strong>{scoreLabel}</strong>
@@ -352,8 +352,10 @@ export default function SpaceSnakePage() {
         </div>
       </section>
 
-      <footer className={styles.footer}>
-        <Link href="/">Back to home</Link>
+      <footer className={`footer-row ${styles.footer}`}>
+        <Link className="footer-link" href="/">
+          Back to home
+        </Link>
       </footer>
     </div>
   );

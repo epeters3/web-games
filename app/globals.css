@@ -60,6 +60,22 @@ h1 {
   margin: 0;
 }
 
+.header-grid {
+  display: grid;
+  align-items: center;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.stage-shell {
+  background: rgba(14, 18, 35, 0.7);
+  display: grid;
+}
+
+.footer-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .ideas {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -125,6 +141,15 @@ h1 {
 .card-cta:hover {
   transform: translateY(-2px);
   box-shadow: 0 24px 50px -22px var(--shadow);
+}
+
+.footer-link {
+  color: var(--cool);
+  text-decoration: none;
+}
+
+.footer-link:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 640px) {

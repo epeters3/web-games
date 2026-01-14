@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Vector3 } from "@babylonjs/core";
+import {
+  Color3,
+  Mesh,
+  MeshBuilder,
+  StandardMaterial,
+  Vector3,
+} from "@babylonjs/core";
 import type { LevelConfig } from "./types";
 import { useGameEngine } from "./useGameEngine";
 import { usePlayer } from "./usePlayer";
@@ -27,6 +33,9 @@ export const Game: React.FC<GameProps> = ({ config }) => {
   const [isNewBest, setIsNewBest] = useState(false);
   const [destroyedEnemyCount, setDestroyedEnemyCount] = useState(0);
   const initialEnemyCountRef = useRef<number | null>(null);
+  const [showCollisionDebug, setShowCollisionDebug] = useState(false);
+  const collisionDebugMeshesRef = useRef<Mesh[]>([]);
+  const collisionDebugMaterialRef = useRef<StandardMaterial | null>(null);
 
   // Asset path
   const assetPath = (() => {
@@ -85,6 +94,58 @@ export const Game: React.FC<GameProps> = ({ config }) => {
       }
     }
   }, [config.id]);
+
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.code === "KeyC") {
+        setShowCollisionDebug((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
+  useEffect(() => {
+    if (!scene) return;
+
+    const clearDebugMeshes = () => {
+      collisionDebugMeshesRef.current.forEach((mesh) => mesh.dispose());
+      collisionDebugMeshesRef.current = [];
+      if (collisionDebugMaterialRef.current) {
+        collisionDebugMaterialRef.current.dispose();
+        collisionDebugMaterialRef.current = null;
+      }
+    };
+
+    if (!showCollisionDebug) {
+      clearDebugMeshes();
+      return;
+    }
+
+    clearDebugMeshes();
+    const material = new StandardMaterial("collisionDebugMat", scene);
+    material.emissiveColor = new Color3(1, 0.4, 0.2);
+    material.wireframe = true;
+    material.alpha = 0.35;
+    material.disableLighting = true;
+    collisionDebugMaterialRef.current = material;
+
+    collisionDebugMeshesRef.current = environmentState.collisionBodies.map(
+      (body, index) => {
+        const sphere = MeshBuilder.CreateSphere(
+          `collision-debug-${index}`,
+          { diameter: body.radius * 2, segments: 16 },
+          scene
+        );
+        sphere.position.set(body.center[0], body.center[1], body.center[2]);
+        sphere.material = material;
+        sphere.isPickable = false;
+        return sphere;
+      }
+    );
+  }, [scene, environmentState.collisionBodies, showCollisionDebug]);
 
   // Reset game function
   const resetGame = useCallback(async () => {
@@ -181,6 +242,7 @@ export const Game: React.FC<GameProps> = ({ config }) => {
 
       // Update enemies
       updateEnemies(dt, environmentState);
+
 
       // Track initial enemy count when enemies are first loaded
       // Only set it if we actually have enemies (count > 0)
@@ -317,7 +379,7 @@ export const Game: React.FC<GameProps> = ({ config }) => {
   const isLoading = !sceneLoaded || !enemiesLoaded;
 
   return (
-    <section className={styles.stage}>
+    <section className={`stage-shell ${styles.stage}`}>
       <div className={styles.viewport}>
         <canvas ref={canvasRef} className={styles.canvas} />
 

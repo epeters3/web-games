@@ -30,7 +30,7 @@ export default function Home() {
             3D dogfighting in asteroid fields. Rails, lightning, and cinematic
             chaos.
           </p>
-          <Link className="card-cta" href="/space-dogs">
+          <Link className="card-cta" href="/space-dogs/embrium-defense/">
             Fly now
           </Link>
         </div>

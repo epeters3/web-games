@@ -3,7 +3,7 @@ import type { LevelConfig } from "../engine/types";
 export const embriumDefense: LevelConfig = {
   id: "embrium-defense",
   name: "Space Dogs",
-  eyebrow: "Defense Mission",
+  eyebrow: "Embrium Defense",
   description:
     "Alien mining drones are stealing Embrium—the galaxy's most precious substance—from our volcanic reserves. Destroy all drones before they drain the planet dry.",
 

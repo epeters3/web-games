@@ -9,24 +9,16 @@
 }
 
 .header {
-  display: grid;
   gap: 1rem;
-  align-items: center;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.25em;
-  font-size: 0.85rem;
-  color: var(--cool);
+.eyebrowSpacing {
   margin: 0 0 0.6rem;
 }
 
-.lead {
+.leadSpacing {
   margin: 0.6rem 0 0;
-  color: var(--muted);
-  max-width: 520px;
+  font-size: 1rem;
 }
 
 .header h1 {
@@ -66,11 +58,9 @@
 }
 
 .stage {
-  background: rgba(14, 18, 35, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 26px;
   padding: 2.2rem;
-  display: grid;
   gap: 1.2rem;
   justify-items: center;
   box-shadow: 0 30px 60px -28px rgba(0, 0, 0, 0.6);
@@ -109,17 +99,6 @@
 }
 
 .footer {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.footer a {
-  color: var(--cool);
-  text-decoration: none;
-}
-
-.footer a:hover {
-  text-decoration: underline;
 }
 
 @media (max-width: 700px) {

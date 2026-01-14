@@ -13,6 +13,7 @@ import {
   Quaternion,
   Scene,
   SceneLoader,
+  ShadowGenerator,
   StandardMaterial,
   Vector3,
 } from "@babylonjs/core";
@@ -34,7 +35,10 @@ export interface GameEngineResult {
   assetsLoaded: boolean;
 }
 
-const createLight = (config: LightConfig, scene: Scene): void => {
+const createLight = (
+  config: LightConfig,
+  scene: Scene
+): { shadowGenerator?: ShadowGenerator } => {
   switch (config.type) {
     case "point": {
       const light = new PointLight(
@@ -46,7 +50,7 @@ const createLight = (config: LightConfig, scene: Scene): void => {
       light.range = config.range;
       light.diffuse = new Color3(...config.diffuse);
       light.specular = new Color3(...config.specular);
-      break;
+      return {};
     }
     case "directional": {
       const light = new DirectionalLight(
@@ -57,7 +61,16 @@ const createLight = (config: LightConfig, scene: Scene): void => {
       light.intensity = config.intensity;
       light.diffuse = new Color3(...config.diffuse);
       light.specular = new Color3(...config.specular);
-      break;
+      light.position = new Vector3(
+        -config.direction[0],
+        -config.direction[1],
+        -config.direction[2]
+      ).scale(400);
+      const shadowGenerator = new ShadowGenerator(4096, light);
+      light.shadowOrthoScale = 0.5;
+      shadowGenerator.usePoissonSampling = true;
+      shadowGenerator.bias = 0.0003;
+      return { shadowGenerator };
     }
     case "hemisphere": {
       const light = new HemisphericLight(
@@ -72,7 +85,7 @@ const createLight = (config: LightConfig, scene: Scene): void => {
       if (config.groundColor) {
         light.groundColor = new Color3(...config.groundColor);
       }
-      break;
+      return {};
     }
   }
 };
@@ -196,7 +209,13 @@ export const useGameEngine = (
     glowRef.current = glow;
 
     // Create lights from config
-    config.lights.forEach((lightConfig) => createLight(lightConfig, scene));
+    const shadowGenerators: ShadowGenerator[] = [];
+    config.lights.forEach((lightConfig) => {
+      const { shadowGenerator } = createLight(lightConfig, scene);
+      if (shadowGenerator) {
+        shadowGenerators.push(shadowGenerator);
+      }
+    });
 
     // Track loading state
     let isMounted = true;
@@ -213,6 +232,20 @@ export const useGameEngine = (
       pendingLoads[key] = true;
       checkAllLoaded();
     };
+
+    const addMeshToShadows = (mesh: Mesh) => {
+      if (mesh.getTotalVertices() <= 0) return;
+      mesh.receiveShadows = true;
+      shadowGenerators.forEach((generator) => {
+        generator.addShadowCaster(mesh, true);
+      });
+    };
+
+    const meshObserver = scene.onNewMeshAddedObservable.add((mesh) => {
+      if (mesh instanceof Mesh) {
+        addMeshToShadows(mesh);
+      }
+    });
 
     // Load environment based on type
     const loadEnvironment = async () => {
@@ -268,26 +301,63 @@ export const useGameEngine = (
 
             // Get template mesh for instancing
             const templateMeshes = asteroidResult.meshes.filter(
-              (mesh): mesh is Mesh => mesh instanceof Mesh
+              (mesh): mesh is Mesh =>
+                mesh instanceof Mesh && mesh.getTotalVertices() > 0
             );
+            const templateRadius =
+              templateMeshes.reduce((maxRadius, mesh) => {
+                const meshRadius = mesh.getBoundingInfo().boundingSphere.radius;
+                return Math.max(maxRadius, meshRadius);
+              }, 1) || 1;
 
             // Generate random asteroid positions
             const { count, spawnArea, scaleMin, scaleMax, collisionScale } =
               env.asteroids;
             const spawnCenter = new Vector3(...spawnArea.center);
+            const playerStart = new Vector3(...config.player.startPosition);
+            const playerKeepout = Math.max(config.player.radius * 2, 2);
 
-            for (let i = 0; i < count; i++) {
-              // Random position within sphere
+            const placedAsteroids: { position: Vector3; radius: number }[] = [];
+            const maxPlacementAttempts = 200;
+            const overlapPadding = 1.05;
+
+            const getRandomPosition = () => {
               const theta = Math.random() * Math.PI * 2;
               const phi = Math.acos(2 * Math.random() - 1);
               const r = Math.cbrt(Math.random()) * spawnArea.radius;
-
               const x = r * Math.sin(phi) * Math.cos(theta);
               const y = r * Math.sin(phi) * Math.sin(theta);
               const z = r * Math.cos(phi);
+              return spawnCenter.add(new Vector3(x, y, z));
+            };
 
-              const position = spawnCenter.add(new Vector3(x, y, z));
+            for (let i = 0; i < count; i++) {
               const scale = scaleMin + Math.random() * (scaleMax - scaleMin);
+              const desiredRadius = templateRadius * scale;
+              let position = getRandomPosition();
+              let hasOverlap = true;
+
+              for (let attempt = 0; attempt < maxPlacementAttempts; attempt++) {
+                const overlapsAsteroid = placedAsteroids.some((placed) => {
+                  const minDistance =
+                    (desiredRadius + placed.radius) * overlapPadding;
+                  return position.subtract(placed.position).length() < minDistance;
+                });
+                const playerDistance = position.subtract(playerStart).length();
+                const overlapsPlayer =
+                  playerDistance <
+                  (desiredRadius + playerKeepout) * overlapPadding;
+                hasOverlap = overlapsAsteroid || overlapsPlayer;
+
+                if (!hasOverlap) {
+                  break;
+                }
+
+                position = getRandomPosition();
+              }
+              if (hasOverlap) {
+                continue;
+              }
 
               // Random rotation
               const rotation = new Vector3(
@@ -297,6 +367,7 @@ export const useGameEngine = (
               );
 
               // Create instances
+              const asteroidInstances: Mesh[] = [];
               templateMeshes.forEach((mesh) => {
                 const instance = mesh.createInstance(
                   `asteroid-${i}-${mesh.name}`
@@ -304,19 +375,56 @@ export const useGameEngine = (
                 instance.position = position.clone();
                 instance.scaling = new Vector3(scale, scale, scale);
                 instance.rotation = rotation.clone();
+                instance.computeWorldMatrix(true);
+                instance.refreshBoundingInfo();
                 environmentMeshes.push(instance as unknown as Mesh);
+                asteroidInstances.push(instance as unknown as Mesh);
               });
 
-              // Add collision sphere
-              const collisionRadius = scale * (collisionScale ?? 0.5);
-              collisionBodies.push({
-                center: [position.x, position.y, position.z],
-                radius: collisionRadius,
+              // Add collision sphere based on combined instance bounds
+              const boundsMin = new Vector3(
+                Number.POSITIVE_INFINITY,
+                Number.POSITIVE_INFINITY,
+                Number.POSITIVE_INFINITY
+              );
+              const boundsMax = new Vector3(
+                Number.NEGATIVE_INFINITY,
+                Number.NEGATIVE_INFINITY,
+                Number.NEGATIVE_INFINITY
+              );
+              asteroidInstances.forEach((instance) => {
+                const info = instance.getBoundingInfo();
+                const sphere = info.boundingSphere;
+                const radius = sphere.radiusWorld;
+                const center = sphere.centerWorld;
+                boundsMin.x = Math.min(boundsMin.x, center.x - radius);
+                boundsMin.y = Math.min(boundsMin.y, center.y - radius);
+                boundsMin.z = Math.min(boundsMin.z, center.z - radius);
+                boundsMax.x = Math.max(boundsMax.x, center.x + radius);
+                boundsMax.y = Math.max(boundsMax.y, center.y + radius);
+                boundsMax.z = Math.max(boundsMax.z, center.z + radius);
               });
+
+              if (asteroidInstances.length > 0) {
+                const collisionCenter = boundsMin.add(boundsMax).scale(0.5);
+                const extent = boundsMax.subtract(boundsMin);
+                const collisionRadius =
+                  Math.max(extent.x, extent.y, extent.z) *
+                  0.5 *
+                  (collisionScale ?? 0.5);
+                collisionBodies.push({
+                  center: [
+                    collisionCenter.x,
+                    collisionCenter.y,
+                    collisionCenter.z,
+                  ],
+                  radius: collisionRadius,
+                });
+              }
+
+              placedAsteroids.push({ position, radius: desiredRadius });
+
             }
-
-            // Dispose original root
-            asteroidRoot?.dispose(false, true);
 
             // Use spawn center as environment center
             centerPoint = spawnCenter.clone();
@@ -360,6 +468,7 @@ export const useGameEngine = (
       }
 
       if (isMounted) {
+        environmentMeshes.forEach((mesh) => addMeshToShadows(mesh));
         setEnvironmentState({
           collisionBodies,
           centerPoint,
@@ -426,6 +535,9 @@ export const useGameEngine = (
     return () => {
       isMounted = false;
       window.removeEventListener("resize", handleResize);
+      if (meshObserver) {
+        scene.onNewMeshAddedObservable.remove(meshObserver);
+      }
       scene.dispose();
       engine.dispose();
       engineRef.current = null;
