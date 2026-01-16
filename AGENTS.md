@@ -11,3 +11,5 @@
   yourself don't have to re-learn what you did. Don't treat AGENTS.md like a
   changelog. Instead, it is a living document that reflects the background
   context and current state of the design guidelines and notes.
+- Before implementing something complicated, always first ask: does one of the
+  frameworks in this project already have a simple native way of doing this?

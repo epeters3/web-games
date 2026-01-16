@@ -96,7 +96,7 @@ export const useWeapons = (
       onDroneDestroyed: (drone: Drone, index: number) => void,
       spawnSparks: (position: Vector3, count: number) => void
     ) => {
-      const { weapons, enemies } = config;
+      const { weapons } = config;
       const lasers = lasersRef.current;
 
       for (let i = lasers.length - 1; i >= 0; i -= 1) {
@@ -120,12 +120,20 @@ export const useWeapons = (
         // Check collision with drones
         for (let d = drones.length - 1; d >= 0; d -= 1) {
           const drone = drones[d];
-          const distance = Vector3.Distance(
+          drone.node.computeWorldMatrix(true);
+          const inverseWorld = drone.node.getWorldMatrix().clone().invert();
+          const laserLocal = Vector3.TransformCoordinates(
             laser.mesh.position,
-            drone.node.getAbsolutePosition()
+            inverseWorld
           );
+          const offset = laserLocal.subtract(drone.collisionCenter);
+          const radii = drone.collisionRadii;
+          const nx = offset.x / (radii.x || 1);
+          const ny = offset.y / (radii.y || 1);
+          const nz = offset.z / (radii.z || 1);
+          const inside = nx * nx + ny * ny + nz * nz <= 1;
 
-          if (distance <= enemies.hitRadius) {
+          if (inside) {
             drone.health -= 1;
             spawnSparks(drone.node.getAbsolutePosition(), SPARK_COUNT_ON_HIT);
 

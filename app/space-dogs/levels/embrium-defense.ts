@@ -41,10 +41,9 @@ export const embriumDefense: LevelConfig = {
   enemies: {
     asset: "ufo_flying_saucer_spaceship_ovni_1k.glb",
     count: 6,
-    scale: 0.003,
+    scale: 3,
     maxSpeed: 10,
     health: 5,
-    hitRadius: 1,
     movement: {
       type: "orbital",
       center: [-18, -10, 0], // Orbit around planet
@@ -88,7 +87,7 @@ export const embriumDefense: LevelConfig = {
   weapons: {
     laserSpeed: 300,
     laserLifetime: 0.7,
-    laserLength: 10,
+    laserLength: 20,
     laserDiameter: 0.12,
     laserColor: [0.3, 1, 0.55],
     fireRate: 135,

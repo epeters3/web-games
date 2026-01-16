@@ -5,6 +5,7 @@ import {
   Color3,
   Mesh,
   MeshBuilder,
+  Quaternion,
   StandardMaterial,
   Vector3,
 } from "@babylonjs/core";
@@ -36,6 +37,8 @@ export const Game: React.FC<GameProps> = ({ config }) => {
   const [showCollisionDebug, setShowCollisionDebug] = useState(false);
   const collisionDebugMeshesRef = useRef<Mesh[]>([]);
   const collisionDebugMaterialRef = useRef<StandardMaterial | null>(null);
+  const enemyCollisionDebugMaterialRef = useRef<StandardMaterial | null>(null);
+  const enemyCollisionDebugMeshesRef = useRef<Mesh[]>([]);
 
   // Asset path
   const assetPath = (() => {
@@ -109,9 +112,15 @@ export const Game: React.FC<GameProps> = ({ config }) => {
     const clearDebugMeshes = () => {
       collisionDebugMeshesRef.current.forEach((mesh) => mesh.dispose());
       collisionDebugMeshesRef.current = [];
+      enemyCollisionDebugMeshesRef.current.forEach((mesh) => mesh.dispose());
+      enemyCollisionDebugMeshesRef.current = [];
       if (collisionDebugMaterialRef.current) {
         collisionDebugMaterialRef.current.dispose();
         collisionDebugMaterialRef.current = null;
+      }
+      if (enemyCollisionDebugMaterialRef.current) {
+        enemyCollisionDebugMaterialRef.current.dispose();
+        enemyCollisionDebugMaterialRef.current = null;
       }
     };
 
@@ -128,10 +137,17 @@ export const Game: React.FC<GameProps> = ({ config }) => {
     material.disableLighting = true;
     collisionDebugMaterialRef.current = material;
 
-    collisionDebugMeshesRef.current = environmentState.collisionBodies.map(
+    const enemyMaterial = new StandardMaterial("enemyCollisionDebugMat", scene);
+    enemyMaterial.emissiveColor = new Color3(0.2, 0.85, 1);
+    enemyMaterial.wireframe = true;
+    enemyMaterial.alpha = 0.35;
+    enemyMaterial.disableLighting = true;
+    enemyCollisionDebugMaterialRef.current = enemyMaterial;
+
+    const environmentDebug = environmentState.collisionBodies.map(
       (body, index) => {
         const sphere = MeshBuilder.CreateSphere(
-          `collision-debug-${index}`,
+          `collision-debug-env-${index}`,
           { diameter: body.radius * 2, segments: 16 },
           scene
         );
@@ -141,7 +157,31 @@ export const Game: React.FC<GameProps> = ({ config }) => {
         return sphere;
       }
     );
-  }, [scene, environmentState.collisionBodies, showCollisionDebug]);
+
+    const enemyDebug = drones.map((drone, index) => {
+      const sphere = MeshBuilder.CreateSphere(
+        `collision-debug-enemy-${index}`,
+        { diameter: 1, segments: 16 },
+        scene
+      );
+      sphere.parent = drone.node;
+      sphere.position.copyFrom(drone.collisionCenter);
+      sphere.scaling.copyFrom(drone.collisionRadii.scale(2));
+      sphere.rotationQuaternion = Quaternion.Identity();
+      sphere.material = enemyMaterial;
+      sphere.isPickable = false;
+      return sphere;
+    });
+
+    collisionDebugMeshesRef.current = [...environmentDebug, ...enemyDebug];
+    enemyCollisionDebugMeshesRef.current = enemyDebug;
+  }, [
+    scene,
+    environmentState.collisionBodies,
+    showCollisionDebug,
+    drones,
+    droneCount,
+  ]);
 
   // Reset game function
   const resetGame = useCallback(async () => {
@@ -326,6 +366,18 @@ export const Game: React.FC<GameProps> = ({ config }) => {
         }
       }
 
+      if (showCollisionDebug) {
+        const enemyDebugMeshes = enemyCollisionDebugMeshesRef.current;
+        const count = Math.min(enemyDebugMeshes.length, drones.length);
+        for (let i = 0; i < count; i += 1) {
+          const drone = drones[i];
+          enemyDebugMeshes[i].position.copyFrom(drone.collisionCenter);
+          enemyDebugMeshes[i].scaling.copyFrom(
+            drone.collisionRadii.scale(2)
+          );
+        }
+      }
+
       scene.render();
     };
 
@@ -359,6 +411,7 @@ export const Game: React.FC<GameProps> = ({ config }) => {
     isVictory,
     bestTime,
     config.id,
+    showCollisionDebug,
   ]);
 
   // Format time for display

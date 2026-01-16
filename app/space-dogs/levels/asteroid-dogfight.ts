@@ -44,7 +44,7 @@ export const asteroidDogfight: LevelConfig = {
     {
       type: "directional",
       direction: [0.4, -0.6, 0.3],
-      intensity: 50,
+      intensity: 35,
       diffuse: [0.9, 0.95, 1],
       specular: [0.9, 0.9, 1],
     },
@@ -60,12 +60,11 @@ export const asteroidDogfight: LevelConfig = {
 
   // Enemies
   enemies: {
-    asset: "stealth_spaceship_1k.glb",
+    asset: "bug_glow_space_ship_1k.glb",
     count: 8,
-    scale: 0.005,
+    scale: 5,
     maxSpeed: 12,
-    health: 4,
-    hitRadius: 1.1,
+    health: 8,
     movement: {
       type: "random-area",
       area: {
@@ -95,7 +94,7 @@ export const asteroidDogfight: LevelConfig = {
   weapons: {
     laserSpeed: 300,
     laserLifetime: 0.7,
-    laserLength: 10,
+    laserLength: 20,
     laserDiameter: 0.12,
     laserColor: [0.3, 0.9, 1],
     fireRate: 120,

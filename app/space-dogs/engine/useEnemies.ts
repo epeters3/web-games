@@ -7,11 +7,12 @@ import {
   PointLight,
   Quaternion,
   Scene,
-  SceneLoader,
   StandardMaterial,
   TransformNode,
   Vector3,
 } from "@babylonjs/core";
+import type { AssetContainer } from "@babylonjs/core/assetContainer";
+import { LoadAssetContainerAsync } from "@babylonjs/core/Loading/sceneLoader";
 import type { Drone, EnvironmentState, LevelConfig } from "./types";
 
 export interface EnemiesResult {
@@ -23,12 +24,46 @@ export interface EnemiesResult {
   resetEnemies: () => Promise<void>;
 }
 
+const getLocalBounds = (root: TransformNode): { min: Vector3; max: Vector3 } => {
+  root.computeWorldMatrix(true);
+  const inverseRoot = root.getWorldMatrix().clone().invert();
+  const min = new Vector3(
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY
+  );
+  const max = new Vector3(
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY
+  );
+  const meshes = root.getChildMeshes(true);
+  if (meshes.length === 0) {
+    return { min: Vector3.Zero(), max: Vector3.Zero() };
+  }
+
+  meshes.forEach((mesh) => {
+    const box = mesh.getBoundingInfo().boundingBox;
+    box.vectorsWorld.forEach((corner) => {
+      const local = Vector3.TransformCoordinates(corner, inverseRoot);
+      const nextMin = Vector3.Minimize(min, local);
+      const nextMax = Vector3.Maximize(max, local);
+      min.copyFrom(nextMin);
+      max.copyFrom(nextMax);
+    });
+  });
+
+  return { min, max };
+};
+
 export const useEnemies = (
   scene: Scene | null,
   config: LevelConfig,
   assetPath: string
 ): EnemiesResult => {
   const dronesRef = useRef<Drone[]>([]);
+  const containerRef = useRef<AssetContainer | null>(null);
+  const containerAssetRef = useRef<string | null>(null);
   const [droneCount, setDroneCount] = useState(0);
 
   const getRandomBeamDelay = useCallback(() => {
@@ -96,47 +131,65 @@ export const useEnemies = (
     const { movement } = enemies;
 
     try {
-      const result = await SceneLoader.ImportMeshAsync(
-        "",
-        assetPath,
-        enemies.asset,
-        scene
-      );
-
-      const rootNodes = result.meshes.filter((mesh) => mesh.parent === null);
-      const primaryRoot = rootNodes[0] ?? result.meshes[0];
-      rootNodes.slice(1).forEach((root) => root.setEnabled(false));
+      let container = containerRef.current;
+      if (containerAssetRef.current !== enemies.asset || !container) {
+        if (container) {
+          container.dispose();
+        }
+        container = await LoadAssetContainerAsync(enemies.asset, scene, {
+          rootUrl: assetPath,
+        });
+        containerRef.current = container;
+        containerAssetRef.current = enemies.asset;
+      }
 
       const enemyContainer = new TransformNode("enemyContainer", scene);
       enemyContainer.rotationQuaternion = Quaternion.Identity();
 
-      if (primaryRoot) {
-        primaryRoot.parent = enemyContainer;
-        const childMeshes = primaryRoot.getChildMeshes(false);
-        const enemyMeshes = [
-          ...childMeshes.filter((mesh): mesh is Mesh => mesh instanceof Mesh),
-          ...(primaryRoot instanceof Mesh ? [primaryRoot] : []),
-        ];
-
-        // Hide original meshes
-        enemyMeshes.forEach((mesh) => {
-          mesh.isVisible = false;
-        });
-
-        // Create drone instances
+      if (container.meshes.length > 0 || container.transformNodes.length > 0) {
+        // Create drone instances using Babylon's asset container
         for (let i = 0; i < enemies.count; i += 1) {
-          const node = new TransformNode(`drone-${i}`, scene);
-          node.parent = enemyContainer;
-          node.rotationQuaternion = Quaternion.Identity();
-          node.scaling = new Vector3(1, 1, 1);
+          const root = new TransformNode(`drone-${i}`, scene);
+          root.parent = enemyContainer;
+          root.rotationQuaternion = Quaternion.Identity();
+          const s = enemies.scale;
+          root.scaling = new Vector3(s, s, s);
 
-          // Create mesh instances
-          enemyMeshes.forEach((mesh) => {
-            const instance = mesh.createInstance(`drone-${mesh.name}-${i}`);
-            instance.parent = node;
-            const s = enemies.scale;
-            instance.scaling = new Vector3(s, s, s);
+          const instanced = container.instantiateModelsToScene(
+            (name) => `drone-${i}-${name}`,
+            false,
+            {
+              doNotInstantiate: true,
+            }
+          );
+
+          instanced.rootNodes.forEach((node) => {
+            node.parent = root;
+            node.setEnabled(true);
+            node.getChildMeshes(true).forEach((mesh) => {
+              mesh.isVisible = true;
+            });
           });
+
+          root.getChildMeshes(true).forEach((mesh) => {
+            mesh.computeWorldMatrix(true);
+            mesh.refreshBoundingInfo(true, true);
+          });
+
+          root.computeWorldMatrix(true);
+          const bounds = getLocalBounds(root);
+          const centerLocal = bounds.min.add(bounds.max).scale(0.5);
+          const extent = bounds.max.subtract(bounds.min);
+          const radiiLocal = new Vector3(
+            extent.x * 0.5,
+            extent.y * 0.5,
+            extent.z * 0.5
+          );
+          const radiusLocal = Math.max(
+            radiiLocal.x,
+            radiiLocal.y,
+            radiiLocal.z
+          );
 
           // Create tractor beam components if enabled
           let beamMesh: Mesh;
@@ -250,12 +303,15 @@ export const useEnemies = (
           }
 
           dronesRef.current.push({
-            node,
+            node: root,
             angle,
             speed,
             tilt,
             altitude,
             health: enemies.health,
+            collisionCenter: centerLocal,
+            collisionRadius: radiusLocal,
+            collisionRadii: radiiLocal,
             velocity,
             beamMesh,
             beamLight,
@@ -268,6 +324,7 @@ export const useEnemies = (
 
         setDroneCount(dronesRef.current.length);
       }
+
     } catch (error) {
       console.error(`Failed to load ${enemies.asset}`, error);
     }
@@ -380,8 +437,8 @@ export const useEnemies = (
           case "stationary": {
             // Don't move, but position was set during load
             break;
-          }
         }
+      }
 
         // Orientation
         if (enemies.facePoint) {
@@ -547,7 +604,7 @@ export const useEnemies = (
     drone.beamMesh.dispose();
     drone.beamLight.dispose();
     drone.lumpMesh.dispose();
-    drone.node.dispose(false, true);
+    drone.node.dispose(false, false);
     drones.splice(index, 1);
     setDroneCount(drones.length);
   }, []);
@@ -559,7 +616,7 @@ export const useEnemies = (
       drone.beamMesh.dispose();
       drone.beamLight.dispose();
       drone.lumpMesh.dispose();
-      drone.node.dispose(false, true);
+      drone.node.dispose(false, false);
     }
     dronesRef.current = [];
     setDroneCount(0);

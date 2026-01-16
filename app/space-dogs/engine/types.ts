@@ -15,6 +15,9 @@ export type BeamState = "idle" | "beaming" | "waiting";
 export interface Drone {
   node: TransformNode;
   health: number;
+  collisionCenter: Vector3;
+  collisionRadius: number;
+  collisionRadii: Vector3;
   // Movement state (interpretation depends on movement type)
   angle: number;
   speed: number;
@@ -283,7 +286,6 @@ export interface LevelConfig {
     scale: number;
     maxSpeed: number;
     health: number;
-    hitRadius: number;
     movement: EnemyMovementConfig;
     // Orientation
     faceMovementDirection?: boolean; // Face direction of travel
