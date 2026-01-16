@@ -10,7 +10,7 @@ export const asteroidDogfight: LevelConfig = {
   // Scene
   skyColor: [0.01, 0.015, 0.035, 1],
   ambientIntensity: 0.2,
-  glowIntensity: 0.85,
+  glowIntensity: 1.0,
 
   // Environment - Asteroid field
   environment: {
@@ -26,6 +26,17 @@ export const asteroidDogfight: LevelConfig = {
       scaleMax: 140,
       collisionScale: 0.5,
     },
+    staticBodies: [
+      {
+        asset: "sun_and_solar_flares_1k.glb",
+        position: [-2560, 3840, -1920],
+        scale: 450,
+        emissiveScale: 100,
+        diffuseScale: 0.3,
+        castShadows: false,
+        receiveShadows: false,
+      },
+    ],
   },
 
   // Lighting - cold key light + soft rim
@@ -75,7 +86,7 @@ export const asteroidDogfight: LevelConfig = {
     maxSpeed: 54,
     thrustAccel: 18,
     angularAccel: 3.9,
-    linearDamping: 0.995,
+    linearDamping: 0.99,
     angularDamping: 0.9,
     radius: 1.1,
   },

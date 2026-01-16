@@ -10,7 +10,7 @@ export const embriumDefense: LevelConfig = {
   // Scene
   skyColor: [0.02, 0.04, 0.08, 1],
   ambientIntensity: 0.15,
-  glowIntensity: 0.9,
+  glowIntensity: 1.0,
 
   // Environment - Single planet
   environment: {
@@ -19,7 +19,7 @@ export const embriumDefense: LevelConfig = {
       asset: "fire_planet_4k.glb",
       scale: 256,
       position: [-18, -10, 0],
-      emissiveScale: 0.5,
+      emissiveScale: 0.4,
       diffuseScale: 0.7,
       hasCollision: true,
     },

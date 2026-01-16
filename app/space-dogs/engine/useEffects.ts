@@ -1,7 +1,6 @@
 import { useRef, useCallback } from "react";
 import {
   Color3,
-  GlowLayer,
   Mesh,
   MeshBuilder,
   Scene,
@@ -26,15 +25,14 @@ export interface EffectsResult {
 }
 
 export const useEffects = (
-  scene: Scene | null,
-  glow: GlowLayer | null
+  scene: Scene | null
 ): EffectsResult => {
   const explosionsRef = useRef<Explosion[]>([]);
   const sparksRef = useRef<SparkParticle[]>([]);
 
   const spawnExplosion = useCallback(
     (position: Vector3) => {
-      if (!scene || !glow) return;
+      if (!scene) return;
 
       const blast = MeshBuilder.CreateSphere(
         "explosion",
@@ -49,15 +47,14 @@ export const useEffects = (
       blastMat.disableLighting = true;
       blast.material = blastMat;
 
-      glow.addIncludedOnlyMesh(blast);
       explosionsRef.current.push({ mesh: blast, ttl: EXPLOSION_DURATION });
     },
-    [scene, glow]
+    [scene]
   );
 
   const spawnSparks = useCallback(
     (position: Vector3, count: number) => {
-      if (!scene || !glow) return;
+      if (!scene) return;
 
       for (let i = 0; i < count; i += 1) {
         const spark = MeshBuilder.CreateSphere(
@@ -73,8 +70,6 @@ export const useEffects = (
         sparkMat.disableLighting = true;
         spark.material = sparkMat;
 
-        glow.addIncludedOnlyMesh(spark);
-
         const velocity = new Vector3(
           (Math.random() - 0.5) * SPARK_VELOCITY_SPREAD,
           (Math.random() - 0.5) * SPARK_VELOCITY_SPREAD,
@@ -83,7 +78,7 @@ export const useEffects = (
         sparksRef.current.push({ mesh: spark, ttl: SPARK_DURATION, velocity });
       }
     },
-    [scene, glow]
+    [scene]
   );
 
   const updateEffects = useCallback((dt: number) => {

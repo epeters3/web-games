@@ -1,7 +1,6 @@
 import { useRef, useCallback } from "react";
 import {
   Color3,
-  GlowLayer,
   Mesh,
   MeshBuilder,
   PointLight,
@@ -27,7 +26,6 @@ export interface WeaponsResult {
 
 export const useWeapons = (
   scene: Scene | null,
-  glow: GlowLayer | null,
   config: LevelConfig,
   environmentMeshes: Mesh[]
 ): WeaponsResult => {
@@ -36,7 +34,7 @@ export const useWeapons = (
 
   const fireLaser = useCallback(
     (player: Mesh, muzzleOffset: Vector3) => {
-      if (!scene || !glow) return;
+      if (!scene) return;
 
       const { weapons } = config;
 
@@ -55,8 +53,6 @@ export const useWeapons = (
       beamMat.disableLighting = true;
       beamMat.alpha = 0.95;
       beam.material = beamMat;
-
-      glow.addIncludedOnlyMesh(beam);
 
       const beamLight = new PointLight("laserLight", Vector3.Zero(), scene);
       beamLight.intensity = 2.2;
@@ -89,7 +85,7 @@ export const useWeapons = (
         direction,
       });
     },
-    [scene, glow, config, environmentMeshes]
+    [scene, config, environmentMeshes]
   );
 
   const updateWeapons = useCallback(

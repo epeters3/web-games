@@ -80,6 +80,13 @@ export interface CelestialBody {
   rotation?: [number, number, number]; // Euler angles
   emissiveScale?: number;
   diffuseScale?: number;
+  castShadows?: boolean;
+  receiveShadows?: boolean;
+  includeGlow?: boolean;
+  lensFlare?: {
+    size?: number;
+    color?: [number, number, number];
+  };
   // If true, creates a collision sphere at this body's position
   hasCollision?: boolean;
 }

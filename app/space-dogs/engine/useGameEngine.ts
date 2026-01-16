@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  CascadedShadowGenerator,
   Color3,
   Color4,
   DirectionalLight,
@@ -66,9 +67,10 @@ const createLight = (
         -config.direction[1],
         -config.direction[2]
       ).scale(400);
-      const shadowGenerator = new ShadowGenerator(4096, light);
-      light.shadowOrthoScale = 0.5;
-      shadowGenerator.usePoissonSampling = true;
+      const shadowGenerator = new CascadedShadowGenerator(4096, light);
+      shadowGenerator.numCascades = 4;
+      shadowGenerator.stabilizeCascades = true;
+      shadowGenerator.usePercentageCloserFiltering = true;
       shadowGenerator.bias = 0.0003;
       return { shadowGenerator };
     }
@@ -94,7 +96,8 @@ const loadCelestialBody = async (
   body: CelestialBody,
   scene: Scene,
   glow: GlowLayer,
-  assetPath: string
+  assetPath: string,
+  shadowGenerators: ShadowGenerator[]
 ): Promise<{ meshes: Mesh[]; collision?: CollisionSphere }> => {
   try {
     const result = await SceneLoader.ImportMeshAsync(
@@ -121,7 +124,27 @@ const loadCelestialBody = async (
         mesh instanceof Mesh && mesh.getTotalVertices() > 0
     );
 
-    meshes.forEach((mesh) => glow.addIncludedOnlyMesh(mesh));
+    const castShadows = body.castShadows !== false;
+    const receiveShadows = body.receiveShadows !== false;
+    const includeGlow = body.includeGlow !== false;
+    meshes.forEach((mesh) => {
+      mesh.metadata = {
+        ...(mesh.metadata ?? {}),
+        castShadows,
+        receiveShadows,
+        includeGlow,
+      };
+      mesh.receiveShadows = receiveShadows;
+      if (!castShadows) {
+        shadowGenerators.forEach((generator) => {
+          generator.removeShadowCaster(mesh, true);
+        });
+      }
+    });
+
+    if (!includeGlow) {
+      meshes.forEach((mesh) => glow.addExcludedMesh(mesh));
+    }
 
     // Adjust materials if specified
     if (body.emissiveScale !== undefined || body.diffuseScale !== undefined) {
@@ -235,15 +258,24 @@ export const useGameEngine = (
 
     const addMeshToShadows = (mesh: Mesh) => {
       if (mesh.getTotalVertices() <= 0) return;
-      mesh.receiveShadows = true;
+      const receiveShadows = mesh.metadata?.receiveShadows !== false;
+      mesh.receiveShadows = receiveShadows;
+      if (mesh.metadata?.castShadows === false) return;
       shadowGenerators.forEach((generator) => {
         generator.addShadowCaster(mesh, true);
       });
     };
 
+    const addMeshToGlow = (mesh: Mesh) => {
+      if (mesh.metadata?.includeGlow === false) {
+        glow.addExcludedMesh(mesh);
+      }
+    };
+
     const meshObserver = scene.onNewMeshAddedObservable.add((mesh) => {
       if (mesh instanceof Mesh) {
         addMeshToShadows(mesh);
+        addMeshToGlow(mesh);
       }
     });
 
@@ -266,7 +298,8 @@ export const useGameEngine = (
             bodyConfig,
             scene,
             glow,
-            assetPath
+            assetPath,
+            shadowGenerators
           );
 
           environmentMeshes.push(...result.meshes);
@@ -439,7 +472,8 @@ export const useGameEngine = (
                 body,
                 scene,
                 glow,
-                assetPath
+                assetPath,
+                shadowGenerators
               );
               environmentMeshes.push(...result.meshes);
               if (result.collision) {
@@ -458,7 +492,8 @@ export const useGameEngine = (
                 decoration,
                 scene,
                 glow,
-                assetPath
+                assetPath,
+                shadowGenerators
               );
               environmentMeshes.push(...result.meshes);
             }
@@ -488,6 +523,8 @@ export const useGameEngine = (
       );
       starBase.isVisible = true;
       starBase.isPickable = false;
+      starBase.metadata = { ...(starBase.metadata ?? {}), includeGlow: false };
+      addMeshToGlow(starBase);
 
       const starMat = new StandardMaterial("starMat", scene);
       starMat.emissiveColor = new Color3(1, 1, 1);

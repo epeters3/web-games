@@ -61,15 +61,11 @@ export const Game: React.FC<GameProps> = ({ config }) => {
     usePlayer(scene, config);
 
   // Initialize effects
-  const { spawnExplosion, spawnSparks, updateEffects } = useEffects(
-    scene,
-    glow
-  );
+  const { spawnExplosion, spawnSparks, updateEffects } = useEffects(scene);
 
   // Initialize weapons
   const { fireLaser, updateWeapons, lastShotTime } = useWeapons(
     scene,
-    glow,
     config,
     environmentState.environmentMeshes
   );
@@ -82,7 +78,7 @@ export const Game: React.FC<GameProps> = ({ config }) => {
     updateEnemies,
     removeDrone,
     resetEnemies,
-  } = useEnemies(scene, glow, config, assetPath);
+  } = useEnemies(scene, config, assetPath);
 
   // Load best time from localStorage on mount
   useEffect(() => {

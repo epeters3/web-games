@@ -1,7 +1,6 @@
 import { useRef, useCallback, useState } from "react";
 import {
   Color3,
-  GlowLayer,
   Matrix,
   Mesh,
   MeshBuilder,
@@ -26,7 +25,6 @@ export interface EnemiesResult {
 
 export const useEnemies = (
   scene: Scene | null,
-  glow: GlowLayer | null,
   config: LevelConfig,
   assetPath: string
 ): EnemiesResult => {
@@ -92,7 +90,7 @@ export const useEnemies = (
   );
 
   const loadEnemies = useCallback(async () => {
-    if (!scene || !glow) return;
+    if (!scene) return;
 
     const { enemies, tractorBeam } = config;
     const { movement } = enemies;
@@ -123,7 +121,6 @@ export const useEnemies = (
         // Hide original meshes
         enemyMeshes.forEach((mesh) => {
           mesh.isVisible = false;
-          glow.addIncludedOnlyMesh(mesh);
         });
 
         // Create drone instances
@@ -165,7 +162,6 @@ export const useEnemies = (
             beamMat.disableLighting = true;
             beamMesh.material = beamMat;
             beamMesh.isVisible = false;
-            glow.addIncludedOnlyMesh(beamMesh);
 
             // Beam light
             beamLight = new PointLight(
@@ -275,7 +271,7 @@ export const useEnemies = (
     } catch (error) {
       console.error(`Failed to load ${enemies.asset}`, error);
     }
-  }, [scene, glow, config, assetPath, getRandomBeamDelay, getRandomPosition]);
+  }, [scene, config, assetPath, getRandomBeamDelay, getRandomPosition]);
 
   const updateEnemies = useCallback(
     (dt: number, environmentState: EnvironmentState) => {
