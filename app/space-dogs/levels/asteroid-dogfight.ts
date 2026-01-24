@@ -20,7 +20,7 @@ export const asteroidDogfight: LevelConfig = {
       count: 140,
       spawnArea: {
         center: [0, 0, 0],
-        radius: 8192,
+        radius: 1024,
       },
       scaleMin: 4,
       scaleMax: 140,
@@ -65,6 +65,7 @@ export const asteroidDogfight: LevelConfig = {
     scale: 5,
     maxSpeed: 12,
     health: 8,
+    collisionScale: 0.5,
     movement: {
       type: "random-area",
       area: {

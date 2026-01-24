@@ -286,6 +286,8 @@ export interface LevelConfig {
     scale: number;
     maxSpeed: number;
     health: number;
+    // Optional: collision radius multiplier (relative to visual scale)
+    collisionScale?: number;
     movement: EnemyMovementConfig;
     // Orientation
     faceMovementDirection?: boolean; // Face direction of travel

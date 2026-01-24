@@ -14,6 +14,7 @@ import {
 import type { AssetContainer } from "@babylonjs/core/assetContainer";
 import { LoadAssetContainerAsync } from "@babylonjs/core/Loading/sceneLoader";
 import type { Drone, EnvironmentState, LevelConfig } from "./types";
+import { boundsToCollision, getLocalBounds } from "./bounds";
 
 export interface EnemiesResult {
   drones: Drone[];
@@ -23,38 +24,6 @@ export interface EnemiesResult {
   removeDrone: (index: number) => void;
   resetEnemies: () => Promise<void>;
 }
-
-const getLocalBounds = (root: TransformNode): { min: Vector3; max: Vector3 } => {
-  root.computeWorldMatrix(true);
-  const inverseRoot = root.getWorldMatrix().clone().invert();
-  const min = new Vector3(
-    Number.POSITIVE_INFINITY,
-    Number.POSITIVE_INFINITY,
-    Number.POSITIVE_INFINITY
-  );
-  const max = new Vector3(
-    Number.NEGATIVE_INFINITY,
-    Number.NEGATIVE_INFINITY,
-    Number.NEGATIVE_INFINITY
-  );
-  const meshes = root.getChildMeshes(true);
-  if (meshes.length === 0) {
-    return { min: Vector3.Zero(), max: Vector3.Zero() };
-  }
-
-  meshes.forEach((mesh) => {
-    const box = mesh.getBoundingInfo().boundingBox;
-    box.vectorsWorld.forEach((corner) => {
-      const local = Vector3.TransformCoordinates(corner, inverseRoot);
-      const nextMin = Vector3.Minimize(min, local);
-      const nextMax = Vector3.Maximize(max, local);
-      min.copyFrom(nextMin);
-      max.copyFrom(nextMax);
-    });
-  });
-
-  return { min, max };
-};
 
 export const useEnemies = (
   scene: Scene | null,
@@ -171,25 +140,12 @@ export const useEnemies = (
             });
           });
 
-          root.getChildMeshes(true).forEach((mesh) => {
-            mesh.computeWorldMatrix(true);
-            mesh.refreshBoundingInfo(true, true);
-          });
-
-          root.computeWorldMatrix(true);
           const bounds = getLocalBounds(root);
-          const centerLocal = bounds.min.add(bounds.max).scale(0.5);
-          const extent = bounds.max.subtract(bounds.min);
-          const radiiLocal = new Vector3(
-            extent.x * 0.5,
-            extent.y * 0.5,
-            extent.z * 0.5
-          );
-          const radiusLocal = Math.max(
-            radiiLocal.x,
-            radiiLocal.y,
-            radiiLocal.z
-          );
+          const collision = boundsToCollision(bounds);
+          const collisionScale = enemies.collisionScale ?? 1;
+          const centerLocal = collision.center;
+          const radiiLocal = collision.radii.scale(collisionScale);
+          const radiusLocal = collision.radius * collisionScale;
 
           // Create tractor beam components if enabled
           let beamMesh: Mesh;

@@ -1,8 +1,9 @@
 # space-dogs
 
 3D space flight simulator focused on smooth flight, readable combat, and
-striking space vistas. The codebase favors clear separation between configuration
-and runtime systems, with Babylon.js handling rendering and transforms.
+striking space vistas. The codebase favors clear separation between
+configuration and runtime systems, with Babylon.js handling rendering and
+transforms.
 
 ## Core Design Principles
 
@@ -17,8 +18,8 @@ and runtime systems, with Babylon.js handling rendering and transforms.
 
 ## Architecture Overview
 
-- `app/space-dogs/engine/useGameEngine.ts` owns scene setup: lights, glow, stars,
-  environment loading, and shadow configuration.
+- `app/space-dogs/engine/useGameEngine.ts` owns scene setup: lights, glow,
+  stars, environment loading, and shadow configuration.
 - `app/space-dogs/levels/*` defines per-level content: environment, lights,
   player, enemies, and win conditions.
 - `app/space-dogs/engine/useEnemies.ts` handles enemy loading, instancing,
@@ -72,3 +73,6 @@ and runtime systems, with Babylon.js handling rendering and transforms.
   per-entity removal path.
 - For accurate hits, compute collision volumes from the instantiated hierarchy
   instead of hard-coded radii.
+- Use the helpers in `app/space-dogs/engine/bounds.ts` to compute bounds and
+  collision radii consistently across assets.
+- Enemy collision sizes can be tuned per level via `enemies.collisionScale`.

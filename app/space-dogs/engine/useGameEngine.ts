@@ -16,8 +16,11 @@ import {
   SceneLoader,
   ShadowGenerator,
   StandardMaterial,
+  TransformNode,
   Vector3,
 } from "@babylonjs/core";
+import type { AssetContainer } from "@babylonjs/core/assetContainer";
+import { LoadAssetContainerAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders";
 import type {
   CelestialBody,
@@ -26,6 +29,11 @@ import type {
   LevelConfig,
   LightConfig,
 } from "./types";
+import {
+  boundsToCollision,
+  getBoundsFromMeshes,
+  refreshMeshBounds,
+} from "./bounds";
 
 export interface GameEngineResult {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -194,6 +202,8 @@ export const useGameEngine = (
   const engineRef = useRef<Engine | null>(null);
   const sceneRef = useRef<Scene | null>(null);
   const glowRef = useRef<GlowLayer | null>(null);
+  const asteroidContainerRef = useRef<AssetContainer | null>(null);
+  const asteroidAssetRef = useRef<string | null>(null);
 
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [environmentState, setEnvironmentState] = useState<EnvironmentState>({
@@ -314,34 +324,33 @@ export const useGameEngine = (
         }
 
         case "asteroid-field": {
-          // Load asteroid template
           try {
-            const asteroidResult = await SceneLoader.ImportMeshAsync(
-              "",
-              assetPath,
-              env.asteroids.asset,
-              scene
-            );
+            let asteroidContainer = asteroidContainerRef.current;
+            if (
+              !asteroidContainer ||
+              asteroidAssetRef.current !== env.asteroids.asset
+            ) {
+              if (asteroidContainer) {
+                asteroidContainer.dispose();
+              }
+              asteroidContainer = await LoadAssetContainerAsync(
+                env.asteroids.asset,
+                scene,
+                { rootUrl: assetPath }
+              );
+              asteroidContainerRef.current = asteroidContainer;
+              asteroidAssetRef.current = env.asteroids.asset;
+            }
 
-            const asteroidRoot =
-              asteroidResult.meshes.find((m) => m.parent === null) ??
-              asteroidResult.meshes[0];
-
-            // Hide original mesh
-            asteroidResult.meshes.forEach((mesh) => {
-              mesh.isVisible = false;
-            });
-
-            // Get template mesh for instancing
-            const templateMeshes = asteroidResult.meshes.filter(
+            const templateMeshes = asteroidContainer.meshes.filter(
               (mesh): mesh is Mesh =>
                 mesh instanceof Mesh && mesh.getTotalVertices() > 0
             );
-            const templateRadius =
-              templateMeshes.reduce((maxRadius, mesh) => {
-                const meshRadius = mesh.getBoundingInfo().boundingSphere.radius;
-                return Math.max(maxRadius, meshRadius);
-              }, 1) || 1;
+            refreshMeshBounds(templateMeshes);
+            const templateBounds = getBoundsFromMeshes(templateMeshes);
+            const templateCollision = boundsToCollision(templateBounds);
+            const templateCenterLocal = templateCollision.center;
+            const templateRadius = Math.max(templateCollision.radius, 1);
 
             // Generate random asteroid positions
             const { count, spawnArea, scaleMin, scaleMax, collisionScale } =
@@ -399,64 +408,45 @@ export const useGameEngine = (
                 Math.random() * Math.PI * 2
               );
 
-              // Create instances
-              const asteroidInstances: Mesh[] = [];
-              templateMeshes.forEach((mesh) => {
-                const instance = mesh.createInstance(
-                  `asteroid-${i}-${mesh.name}`
-                );
-                instance.position = position.clone();
-                instance.scaling = new Vector3(scale, scale, scale);
-                instance.rotation = rotation.clone();
-                instance.computeWorldMatrix(true);
-                instance.refreshBoundingInfo();
-                environmentMeshes.push(instance as unknown as Mesh);
-                asteroidInstances.push(instance as unknown as Mesh);
-              });
+              const root = new TransformNode(`asteroid-${i}`, scene);
+              root.position = position.clone();
+              root.scaling = new Vector3(scale, scale, scale);
+              root.rotation = rotation.clone();
 
-              // Add collision sphere based on combined instance bounds
-              const boundsMin = new Vector3(
-                Number.POSITIVE_INFINITY,
-                Number.POSITIVE_INFINITY,
-                Number.POSITIVE_INFINITY
+              const instanced = asteroidContainer.instantiateModelsToScene(
+                (name) => `asteroid-${i}-${name}`,
+                false
               );
-              const boundsMax = new Vector3(
-                Number.NEGATIVE_INFINITY,
-                Number.NEGATIVE_INFINITY,
-                Number.NEGATIVE_INFINITY
-              );
-              asteroidInstances.forEach((instance) => {
-                const info = instance.getBoundingInfo();
-                const sphere = info.boundingSphere;
-                const radius = sphere.radiusWorld;
-                const center = sphere.centerWorld;
-                boundsMin.x = Math.min(boundsMin.x, center.x - radius);
-                boundsMin.y = Math.min(boundsMin.y, center.y - radius);
-                boundsMin.z = Math.min(boundsMin.z, center.z - radius);
-                boundsMax.x = Math.max(boundsMax.x, center.x + radius);
-                boundsMax.y = Math.max(boundsMax.y, center.y + radius);
-                boundsMax.z = Math.max(boundsMax.z, center.z + radius);
-              });
 
-              if (asteroidInstances.length > 0) {
-                const collisionCenter = boundsMin.add(boundsMax).scale(0.5);
-                const extent = boundsMax.subtract(boundsMin);
-                const collisionRadius =
-                  Math.max(extent.x, extent.y, extent.z) *
-                  0.5 *
-                  (collisionScale ?? 0.5);
-                collisionBodies.push({
-                  center: [
-                    collisionCenter.x,
-                    collisionCenter.y,
-                    collisionCenter.z,
-                  ],
-                  radius: collisionRadius,
+              instanced.rootNodes.forEach((node) => {
+                node.parent = root;
+                node.setEnabled(true);
+                node.getChildMeshes(true).forEach((mesh) => {
+                  mesh.isVisible = true;
+                  mesh.computeWorldMatrix(true);
+                  mesh.refreshBoundingInfo(true, true);
+                  environmentMeshes.push(mesh as unknown as Mesh);
                 });
-              }
+              });
+
+              root.computeWorldMatrix(true);
+              const collisionCenter = Vector3.TransformCoordinates(
+                templateCenterLocal,
+                root.getWorldMatrix()
+              );
+              const collisionRadius =
+                desiredRadius * (collisionScale ?? 0.5);
+
+              collisionBodies.push({
+                center: [
+                  collisionCenter.x,
+                  collisionCenter.y,
+                  collisionCenter.z,
+                ],
+                radius: collisionRadius,
+              });
 
               placedAsteroids.push({ position, radius: desiredRadius });
-
             }
 
             // Use spawn center as environment center
@@ -574,6 +564,11 @@ export const useGameEngine = (
       window.removeEventListener("resize", handleResize);
       if (meshObserver) {
         scene.onNewMeshAddedObservable.remove(meshObserver);
+      }
+      if (asteroidContainerRef.current) {
+        asteroidContainerRef.current.dispose();
+        asteroidContainerRef.current = null;
+        asteroidAssetRef.current = null;
       }
       scene.dispose();
       engine.dispose();
