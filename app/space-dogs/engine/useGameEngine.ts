@@ -44,6 +44,10 @@ export interface GameEngineResult {
   assetsLoaded: boolean;
 }
 
+/**
+ * Builds a Babylon light from level config and returns any shadow generator
+ * that needs to be registered for later shadow casting setup.
+ */
 const createLight = (
   config: LightConfig,
   scene: Scene
@@ -100,6 +104,11 @@ const createLight = (
   }
 };
 
+/**
+ * Loads a GLB-based celestial body, applies transforms/material tweaks, and
+ * optionally derives a collision sphere from the instantiated hierarchy.
+ * Use this for planets/moons so visuals and collision stay in sync.
+ */
 const loadCelestialBody = async (
   body: CelestialBody,
   scene: Scene,
@@ -194,6 +203,10 @@ const loadCelestialBody = async (
   }
 };
 
+/**
+ * Initializes the Babylon engine/scene for a level and loads environment assets,
+ * returning state needed by gameplay systems once assets are ready.
+ */
 export const useGameEngine = (
   config: LevelConfig,
   onReady?: () => void

@@ -25,6 +25,10 @@ export interface EnemiesResult {
   resetEnemies: () => Promise<void>;
 }
 
+/**
+ * Loads enemy assets, spawns drones, and updates their movement/collision data.
+ * Call `loadEnemies` after the scene is ready and `updateEnemies` every frame.
+ */
 export const useEnemies = (
   scene: Scene | null,
   config: LevelConfig,

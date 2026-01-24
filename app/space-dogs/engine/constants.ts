@@ -4,6 +4,11 @@ import type { ControlState } from "./types";
 // Default Control State
 // =============================================================================
 
+/**
+ * Provides a fresh control-state object so each player session starts from the
+ * same neutral inputs. Use this instead of reusing a shared object to avoid
+ * stale references across resets.
+ */
 export const createDefaultControlState = (): ControlState => ({
   throttle: false,
   reverse: false,

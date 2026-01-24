@@ -25,6 +25,10 @@ export interface PlayerResult {
   resetPlayer: () => void;
 }
 
+/**
+ * Sets up the player ship, camera, and input handling, and exposes per-frame
+ * update/reset helpers used by the main game loop.
+ */
 export const usePlayer = (
   scene: Scene | null,
   config: LevelConfig

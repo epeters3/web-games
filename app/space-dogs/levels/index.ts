@@ -11,10 +11,16 @@ export const levels: Record<string, LevelConfig> = {
 // Ordered list for level select menu
 export const levelOrder: string[] = ["embrium-defense", "asteroid-dogfight"];
 
-// Get level by ID
+/**
+ * Looks up a level config by ID for routing and gameplay setup. Returns
+ * `undefined` when an unknown ID is requested so callers can fail fast.
+ */
 export const getLevel = (id: string): LevelConfig | undefined => levels[id];
 
-// Get all levels in order
+/**
+ * Returns all level configs in display order for menus and static generation.
+ * Use this instead of `Object.values` to preserve the curated sequence.
+ */
 export const getAllLevels = (): LevelConfig[] =>
   levelOrder.map((id) => levels[id]).filter(Boolean);
 

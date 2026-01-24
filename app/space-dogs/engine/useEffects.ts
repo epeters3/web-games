@@ -24,6 +24,10 @@ export interface EffectsResult {
   updateEffects: (dt: number) => void;
 }
 
+/**
+ * Manages short-lived visual effects (explosions and sparks) for a scene.
+ * Call `updateEffects` each frame and use the spawn helpers when hits occur.
+ */
 export const useEffects = (
   scene: Scene | null
 ): EffectsResult => {

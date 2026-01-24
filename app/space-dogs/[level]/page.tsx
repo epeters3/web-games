@@ -8,6 +8,10 @@ interface SpaceDogsLevelPageProps {
 
 export const dynamicParams = false;
 
+/**
+ * Precomputes all level route params so Next can statically generate the
+ * playable missions without relying on runtime lookups.
+ */
 export const generateStaticParams = () =>
   levelOrder.map((level) => ({ level }));
 

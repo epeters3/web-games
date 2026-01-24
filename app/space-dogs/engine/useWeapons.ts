@@ -24,6 +24,10 @@ export interface WeaponsResult {
   lastShotTime: React.MutableRefObject<number>;
 }
 
+/**
+ * Handles laser firing, movement, and hit detection against enemy drones.
+ * Invoke `fireLaser` on input and call `updateWeapons` each frame.
+ */
 export const useWeapons = (
   scene: Scene | null,
   config: LevelConfig,
