@@ -62,6 +62,14 @@ transforms.
 
 - Press `C` to toggle collision debug visuals. Environment spheres are orange;
   enemy collision ellipsoids are cyan and follow the ship's transform.
+- Use `/space-dogs/asset-debug?asset=<file>.glb&scale=<n>&rotX=<deg>&rotY=<deg>&rotZ=<deg>`
+  to inspect GLB rendering, scale, bounds, and rotation against a 1-unit grid.
+- The asset debug CLI relies on Playwright; run `pnpm exec playwright install`
+  once to download the browser binaries if the script fails to launch.
+- Use `pnpm space-dogs:screenshot --screenshot` to capture a full-page image of
+  the asset debug view (grid + lighting + bounds). Screenshots are stored in
+  `artifacts/screenshots` (gitignored) for quick visual verification of scale
+  and collision extents when reviewing assets.
 
 ## Core Learnings
 

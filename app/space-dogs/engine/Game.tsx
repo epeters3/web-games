@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Color3,
-  Constants,
   Mesh,
   MeshBuilder,
   Quaternion,
@@ -143,9 +142,6 @@ export const Game: React.FC<GameProps> = ({ config }) => {
     enemyMaterial.wireframe = true;
     enemyMaterial.alpha = 0.35;
     enemyMaterial.disableLighting = true;
-    enemyMaterial.backFaceCulling = false;
-    enemyMaterial.disableDepthWrite = true;
-    enemyMaterial.depthFunction = Constants.ALWAYS;
     enemyCollisionDebugMaterialRef.current = enemyMaterial;
 
     const environmentDebug = environmentState.collisionBodies.map(

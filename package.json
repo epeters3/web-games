@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "glb:size": "tsx tools/glb-size.ts",
-    "glb:normalize": "tsx tools/resize-glb.ts"
+    "glb:normalize": "tsx tools/resize-glb.ts",
+    "space-dogs:screenshot": "tsx tools/space-dogs-screenshot.ts"
   },
   "dependencies": {
     "@babylonjs/core": "^7.0.0",
@@ -26,7 +27,10 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/yargs": "^17.0.35",
+    "playwright": "^1.58.0",
     "tsx": "^4.16.2",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "yargs": "^18.0.0"
   }
 }
